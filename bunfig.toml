@@ -1,0 +1,11 @@
+# Bun configuration for Splitzz
+
+[test]
+# Test file patterns
+preload = []
+
+# Enable coverage
+coverage = true
+
+# Timeout in milliseconds
+timeout = 10000
