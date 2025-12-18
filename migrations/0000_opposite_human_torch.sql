@@ -15,7 +15,7 @@ CREATE TABLE "account" (
 );
 --> statement-breakpoint
 CREATE TABLE "expenses" (
-	"id" integer PRIMARY KEY NOT NULL,
+	"id" serial PRIMARY KEY NOT NULL,
 	"group_id" integer NOT NULL,
 	"total_amount" integer DEFAULT 0 NOT NULL,
 	"description" text,
@@ -24,7 +24,7 @@ CREATE TABLE "expenses" (
 );
 --> statement-breakpoint
 CREATE TABLE "expense_shares" (
-	"id" integer PRIMARY KEY NOT NULL,
+	"id" serial PRIMARY KEY NOT NULL,
 	"expense_id" integer NOT NULL,
 	"user_id" text NOT NULL,
 	"share_amount" integer DEFAULT 0 NOT NULL,
@@ -33,7 +33,7 @@ CREATE TABLE "expense_shares" (
 );
 --> statement-breakpoint
 CREATE TABLE "groups" (
-	"id" integer PRIMARY KEY NOT NULL,
+	"id" serial PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"description" text,
 	"owner_id" text NOT NULL,
@@ -42,7 +42,7 @@ CREATE TABLE "groups" (
 );
 --> statement-breakpoint
 CREATE TABLE "group_members" (
-	"id" integer PRIMARY KEY NOT NULL,
+	"id" serial PRIMARY KEY NOT NULL,
 	"group_id" integer NOT NULL,
 	"user_id" text NOT NULL,
 	"created_at" timestamp DEFAULT now(),

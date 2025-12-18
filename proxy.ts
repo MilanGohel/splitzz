@@ -5,12 +5,12 @@ import { auth } from "@/utils/auth";
 export async function proxy(request: NextRequest) {
     const session = await auth.api.getSession({
         headers: await headers()
-    })
+    });
 
-    // THIS IS NOT SECURE!
-    // This is the recommended approach to optimistically redirect users
-    // We recommend handling auth checks in each page/route
-    if(!session) {
+    if (!session) {
+        if (request.nextUrl.pathname.startsWith('/api')) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
         return NextResponse.redirect(new URL("/sign-in", request.url));
     }
 
@@ -18,5 +18,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard"], // Specify the routes the middleware applies to
+    matcher: ["/dashboard", "/api/:path*"], // Specify the routes the middleware applies to
 };

@@ -5,20 +5,33 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-brand/50 aria-invalid:ring-loss/20",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        destructive:
-          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+        // Uses your --color-brand (#10B981)
+        default: "bg-brand text-white hover:bg-brand/90 shadow-md",
+        
+        // Uses your --color-loss (#F97316) for destructive actions
+        destructive: "bg-loss text-white hover:bg-loss/90 shadow-sm",
+        
+        // Uses --color-background (#121212) and --color-surface (#1E1E1E)
         outline:
-          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
+          "border border-surface bg-background text-white hover:bg-surface shadow-xs",
+        
+        // Uses --color-surface (#1E1E1E) for a subtle secondary look
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "bg-surface text-white hover:bg-muted/20",
+        
+        // Uses --color-muted for text, highlighting to white on surface hover
         ghost:
-          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
-        link: "text-primary underline-offset-4 hover:underline",
+          "hover:bg-surface hover:text-white",
+        
+        // Link style using the brand color
+        link: "text-brand underline-offset-4 hover:underline",
+        
+        // Success variant using --color-gain (#22C55E)
+        success: "bg-gain text-white hover:bg-gain/90",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",

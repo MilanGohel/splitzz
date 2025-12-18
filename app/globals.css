@@ -2,6 +2,20 @@
 @import "tw-animate-css";
 
 
+@theme {
+  /* Brand colors */
+  --color-brand: #10B981;
+  
+  /* Semantic finance colors */
+  --color-gain: #22C55E;
+  --color-loss: #F97316;
+
+  /* Custom "Blackish" palette */
+  --color-background: #121212;
+  --color-surface: #1E1E1E;
+  --color-muted: #A1A1AA;
+}
+
 @font-face {
   font-family: 'Material Icons';
   font-style: normal;

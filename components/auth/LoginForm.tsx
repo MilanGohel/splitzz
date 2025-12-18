@@ -1,14 +1,26 @@
+"use client"
 
 import { Button } from "@/components/ui/button"
 import {
     Card,
     CardContent,
 } from "@/components/ui/card"
+import { createAuthClient } from "better-auth/react";
+import { useRouter } from "next/navigation";
+import { FaGoogle } from "react-icons/fa";
 
 export function LoginForm() {
-    
-    const onSignIn = () => {
-        
+    const authClient = createAuthClient({});
+    const router = useRouter();
+
+    const onLoginWithGoogle = async () => {
+        const data = await authClient.signIn.social({
+            provider: "google"
+        });
+        if(data.error){
+            console.error("Login failed:", data.error);
+            router.push("/sign-in")
+        }
     }
 
     return (
@@ -16,10 +28,10 @@ export function LoginForm() {
             <CardContent className="pt-6">
                 <Button
                     variant="outline"
-                    className="w-full dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-800 dark:border-neutral-700"
+                    className="w-full dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-800 dark:border-neutral-700 cursor-pointer"
+                    onClick={onLoginWithGoogle}
                 >
-                    <link href="https://fonts.googleapis.com/icon?family=Material+Icons"
-                        rel="stylesheet"></link>
+                    <FaGoogle />
                     Login with Google
                 </Button>
             </CardContent>
