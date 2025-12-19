@@ -84,6 +84,7 @@ export const group = pgTable("groups", {
   name: text("name").notNull(),
   description: text("description"),
   ownerId: text("owner_id").notNull().references(() => user.id, { onDelete: "restrict", onUpdate: "cascade" }),
+  simplifyDebts: boolean("simplify_debts").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").$onUpdate(() => new Date())
 });

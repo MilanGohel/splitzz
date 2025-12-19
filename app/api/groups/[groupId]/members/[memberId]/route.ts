@@ -1,21 +1,50 @@
 import { db, groupMember, user } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { getUserDebts } from "@/lib/helpers/queries";
+import { and, eq, sql } from "drizzle-orm";
 
-export async function DELETE(request:Request, {params}:{params: Promise<{groupId: number, memberId: string}>}) {
-    const {groupId, memberId} = await params;
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ groupId: number; memberId: string }> }
+) {
+  try {
+    const { groupId, memberId } = await params;
 
-    const memberTrans = db.select().from(groupMember);
+    // 1. Check for active debts
+    const userDebts = await getUserDebts(memberId, groupId);
 
-    // query to calculate the userBalance 
-    const userBalance = db.select({
-        userId: user.id,
-        balance: sql<number>`
-            COALESCE((SELECT SUM(share_amount) FROM expense_shares WHERE user_id = ${memberId} AND group_id = ${groupId}),0)
-            - 
-            COALESCE((SELECT SUM(amount) FROM settlements WHERE from_user_id = ${memberId} AND group_id = ${groupId}),0)
-        `
-    }).from(user).where(eq(user.id, memberId));
+    if (userDebts.length > 0) {
+      return Response.json(
+        {
+          error: "You can't delete the user until all debts are cleared.",
+          details: userDebts,
+        },
+        { status: 400 }
+      );
+    }
 
-    await db.delete(groupMember).where(eq(groupMember.groupId, groupId));
+    const result = await db
+      .delete(groupMember)
+      .where(
+        and(eq(groupMember.groupId, groupId), eq(groupMember.userId, memberId))
+      )
+      .returning();
 
+    if (result.length === 0) {
+      return Response.json(
+        { error: "Member not found in this group" },
+        { status: 404 }
+      );
+    }
+
+    return Response.json(
+      {
+        message: "Member successfully removed",
+        removedMember: result[0],
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("Error removing member:", error);
+    return Response.json({ error: "Internal Server Error" }, { status: 500 });
+  }
 }

@@ -5,5 +5,4 @@ export const groupInsertSchema = z.object({
     description: z.string().max(255).optional().or(z.literal("")),
 });
 
-// This type helps you with TypeScript autocomplete in other files
 export type GroupInsertInput = z.infer<typeof groupInsertSchema>;

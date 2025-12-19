@@ -22,6 +22,13 @@
       "when": 1766056490901,
       "tag": "0002_regular_lord_tyger",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1766123737517,
+      "tag": "0003_red_morlun",
+      "breakpoints": true
     }
   ]
 }
