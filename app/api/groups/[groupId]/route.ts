@@ -1,14 +1,29 @@
-import { db, expense } from "@/db/schema";
+import { db, expense, settlement } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { isGroupMember } from "@/lib/helpers/checks";
+import { auth } from "@/utils/auth";
+import { headers } from "next/headers";
 
-export async function GET(request:Request, {params}: {params: Promise<{groupId: number}>}) {
+export async function GET(request: Request, { params }: { params: Promise<{ groupId: number }> }) {
     const { groupId } = await params;
 
+    const session = await auth.api.getSession({
+        headers: await headers()
+    });
+
+    if (!session?.user.id) {
+        return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!await isGroupMember(session.user.id, groupId)) {
+        return Response.json({ error: "You are not a member of this group. You can't view settlements." }, { status: 403 });
+    }
+
     // Fetch group details from the database
-    const expenses = await db.select().from(expense).where(eq(expense.groupId, groupId));
+    const settlements = await db.select().from(settlement).where(eq(settlement.groupId, groupId));
 
     return new Response(
-        JSON.stringify({ expenses }),
+        JSON.stringify({ settlements }),
         {
             status: 200,
             headers: { "Content-Type": "application/json" }

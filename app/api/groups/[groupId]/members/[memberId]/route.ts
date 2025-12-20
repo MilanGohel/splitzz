@@ -1,6 +1,9 @@
 import { db, groupMember, user } from "@/db/schema";
+import { isGroupMember } from "@/lib/helpers/checks";
 import { getUserDebts } from "@/lib/helpers/queries";
+import { auth } from "@/utils/auth";
 import { and, eq, sql } from "drizzle-orm";
+import { headers } from "next/headers";
 
 export async function DELETE(
   request: Request,
@@ -8,6 +11,25 @@ export async function DELETE(
 ) {
   try {
     const { groupId, memberId } = await params;
+
+    const session = await auth.api.getSession({
+      headers: await headers()
+    })
+    if (!session?.user.id) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!await isGroupMember(session.user.id, groupId)) {
+      return Response.json({ error: "You are not a member of this group. You can't remove members." }, { status: 403 });
+    }
+
+    if (session.user.id === memberId) {
+      return Response.json({ error: "You can't remove yourself." }, { status: 400 });
+    }
+
+    if (!await isGroupMember(memberId, groupId)) {
+      return Response.json({ error: "Member not found in this group" }, { status: 404 });
+    }
 
     // 1. Check for active debts
     const userDebts = await getUserDebts(memberId, groupId);

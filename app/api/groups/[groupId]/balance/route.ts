@@ -1,11 +1,21 @@
-import { db } from "@/db/schema";
-import { sql } from "drizzle-orm";
+import { db, group } from "@/db/schema";
+import { isGroupMember } from "@/lib/helpers/checks";
+import { auth } from "@/utils/auth";
+import { eq, sql } from "drizzle-orm";
+import { headers } from "next/headers";
+
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ groupId: number }> }
 ) {
   const { groupId } = await params;
+
+  const [groupData] = await db.select().from(group).where(eq(group.id, groupId)).limit(1);
+  if (!groupData) {
+    return Response.json({ error: "Group not found" }, { status: 404 });
+  }
+
   // expected output: [{userId, balance}]
   // net balance = total spending by user - total user share;
   //which eventually becomes

@@ -93,7 +93,6 @@ export async function POST(request: Request) {
         })
         .returning();
 
-      // Step B: Add Creator to Group Members table
       await tx.insert(groupMember).values({
         userId: userData.id,
         groupId: insertedGroup.id,

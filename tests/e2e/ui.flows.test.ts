@@ -4,7 +4,7 @@
  * Note: These are structured for Playwright but can run with Bun for logic testing
  */
 
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach } from 'jest';
 
 // Mock UI state for testing user flows
 interface UIState {

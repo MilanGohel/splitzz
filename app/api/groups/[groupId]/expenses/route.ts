@@ -1,7 +1,10 @@
-import { db, expense, expenseShare, group, groupMember } from "@/db/schema";
+import { db, expense, expenseShare, group, groupMember, idempotencyKey } from "@/db/schema";
 import { expenseInsertSchema } from "@/lib/zod/expense";
 import { eq, desc, inArray, and } from "drizzle-orm";
 import z from "zod";
+import { isGroupMember } from "@/lib/helpers/checks";
+import { auth } from "@/utils/auth";
+import { headers } from "next/headers";
 
 export async function GET(
   request: Request,
@@ -9,6 +12,16 @@ export async function GET(
 ) {
   try {
     const { groupId } = await params;
+    const session = await auth.api.getSession({
+      headers: await headers()
+    })
+    if (!session?.user.id) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!await isGroupMember(session.user.id, groupId)) {
+      return Response.json({ error: "You are not a member of this group. You can't view expenses." }, { status: 403 });
+    }
 
     const expenses = await db
       .select()
@@ -30,6 +43,7 @@ export async function POST(
   try {
     const { groupId } = await params;
 
+    const idempotencyKeyHeader = request.headers.get("Idempotency-Key");
     const body = await request.json();
 
     const validatedData = await expenseInsertSchema.safeParseAsync(body);
@@ -84,21 +98,20 @@ export async function POST(
       return Response.json(
         {
           error: "Validation Error",
-          message: `Total amount (${totalAmount}) does not equal the sum of shares (${
-            sumOfShares / 100
-          })`,
+          message: `Total amount (${totalAmount}) does not equal the sum of shares (${sumOfShares / 100
+            })`,
         },
         { status: 400 }
       );
     }
 
-    const groupData = await db
+    const [groupData] = await db
       .select()
       .from(group)
       .where(eq(group.id, groupId))
       .limit(1);
 
-    if (groupData.length === 0) {
+    if (!groupData) {
       return Response.json(
         { error: `Group with ID ${groupId} not found.` },
         { status: 404 }
@@ -106,6 +119,23 @@ export async function POST(
     }
 
     const result = await db.transaction(async (tx) => {
+      if (idempotencyKeyHeader) {
+        const [newKey] = await tx
+          .insert(idempotencyKey)
+          .values({
+            key: idempotencyKeyHeader,
+            endpoint: request.url,
+            responseBody: "PENDING",
+            userId: paidBy
+          })
+          .onConflictDoNothing()
+          .returning();
+
+        if (!newKey) {
+          throw new Error("IDEMPOTENCY_CONFLICT");
+        }
+      }
+
       const [insertedExpense] = await tx
         .insert(expense)
         .values({
@@ -128,7 +158,13 @@ export async function POST(
     });
 
     return Response.json({ expense: result }, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
+    if (error.message === "IDEMPOTENCY_CONFLICT") {
+      return Response.json(
+        { error: "This request has already been processed." },
+        { status: 409 }
+      );
+    }
     console.error("Error while creating expense: ", error);
     return Response.json({ error: "Internal server error." }, { status: 500 });
   }
