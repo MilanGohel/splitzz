@@ -23,13 +23,16 @@ export async function GET(
       return Response.json({ error: "You are not a member of this group. You can't view expenses." }, { status: 403 });
     }
 
-    const expenses = await db
-      .select()
-      .from(expense)
-      .where(eq(expense.groupId, groupId))
-      .orderBy(desc(expense.createdAt));
+    const expenses = await db.query.expense.findMany({
+      where: eq(expense.groupId, groupId),
+      with: {
+        paidBy: true
+      }
+    })
 
-    return Response.json({ expenses });
+    return Response.json({
+      expenses: expenses
+    });
   } catch (error) {
     console.error("Error fetching expenses:", error);
     return Response.json({ error: "Internal Server Error" }, { status: 500 });
@@ -98,7 +101,7 @@ export async function POST(
       return Response.json(
         {
           error: "Validation Error",
-          message: `Total amount (${totalAmount}) does not equal the sum of shares (${sumOfShares / 100
+          message: `Total amount (${totalAmount}) does not equal the sum of shares (${sumOfShares
             })`,
         },
         { status: 400 }

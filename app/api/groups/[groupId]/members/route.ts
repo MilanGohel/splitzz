@@ -75,7 +75,30 @@ export async function POST(request: Request, { params }: { params: Promise<{ gro
   }
 
   const body = await request.json();
-  const { userId } = body;
+  let { userId, email } = body;
+
+  if (email && !userId) {
+    const userFound = await db.query.user.findFirst({
+      where: (u, { eq }) => eq(u.email, email)
+    })
+    if (!userFound) {
+      return Response.json({ error: "User with this email not found." }, { status: 404 });
+    }
+    userId = userFound.id;
+  }
+
+  if (!userId) {
+    return Response.json({ error: "User ID or Email is required." }, { status: 400 });
+  }
+
+  // Check if already a member
+  const existingMember = await db.query.groupMember.findFirst({
+    where: (gm, { and, eq }) => and(eq(gm.groupId, groupId), eq(gm.userId, userId))
+  })
+
+  if (existingMember) {
+    return Response.json({ error: "User is already a member of this group." }, { status: 409 });
+  }
 
   const result = await db.insert(groupMember).values({
     groupId,

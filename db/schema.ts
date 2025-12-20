@@ -1,6 +1,7 @@
 import { config } from "dotenv";
 import { integer, text, boolean, timestamp, unique, index, serial, check, jsonb } from "drizzle-orm/pg-core";
-import { drizzle } from 'drizzle-orm/neon-http';
+import { drizzle } from 'drizzle-orm/neon-serverless';
+import { Pool } from "@neondatabase/serverless"
 import { pgTable } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 
@@ -109,12 +110,12 @@ export const expense = pgTable("expenses", {
   paidBy: text("paid_by").notNull().references(() => user.id, { onDelete: "restrict", onUpdate: "cascade" }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").$onUpdate(() => new Date())
-}, (t) => [  
-    check(
-      "amount_positive",
-      sql`${t.totalAmount} > 0`
-    )
-  ]
+}, (t) => [
+  check(
+    "amount_positive",
+    sql`${t.totalAmount} > 0`
+  )
+]
 );
 
 export const expenseShare = pgTable("expense_shares", {
@@ -165,8 +166,8 @@ export const userRelations = relations(user, ({ many }) => ({
   ownedGroups: many(group),
   memberships: many(groupMember),
   expenseShares: many(expenseShare),
-  settlement: many(settlement, {relationName: "settlementSent"}),
-  settlementsReceived: many(settlement, {relationName: "settlementReceived"}),
+  settlement: many(settlement, { relationName: "settlementSent" }),
+  settlementsReceived: many(settlement, { relationName: "settlementReceived" }),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -265,4 +266,5 @@ const schema = {
   expenseShareRelations,
 };
 
-export const db = drizzle(process.env.DATABASE_URL!, { schema });
+const pool = new Pool({ connectionString: process.env.DATABASE_URL! })
+export const db = drizzle({ client: pool, schema });
