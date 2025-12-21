@@ -14,6 +14,7 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
     Form,
     FormControl,
@@ -77,6 +78,59 @@ export function EditExpenseDialog({ groupId, expense }: { groupId: string; expen
     // Watch for amount changes to recalculate splits if needed
     const totalAmount = form.watch("totalAmount")
 
+    const updateShares = (ids: string[]) => {
+        if (ids.length === 0) {
+            form.setValue("shares", [])
+            return
+        }
+
+        const amount =
+            totalAmount > 0
+                ? Number((totalAmount / ids.length).toFixed(2))
+                : 0
+
+        form.setValue(
+            "shares",
+            ids.map(id => ({ userId: id, amount }))
+        )
+    }
+
+    const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([])
+    const [splitType, setSplitType] = useState("equal")
+
+    // Initialize selectedMemberIds from fetched shares
+    useEffect(() => {
+        const currentShares = form.getValues("shares")
+        if (currentShares && currentShares.length > 0) {
+            setSelectedMemberIds(currentShares.map(s => s.userId))
+            // We assume equal split initially if we just opened, OR we could check variance.
+            // For simplicity, let's just set ids.
+        }
+    }, [form.getValues("shares"), open])
+
+
+    // Sync shares when switching to equal mode or updating properties
+    useEffect(() => {
+        if (splitType === "equal") {
+            updateShares(selectedMemberIds)
+        }
+    }, [totalAmount, splitType])
+
+    const handleCheckboxChange = (checked: boolean, memberId: string) => {
+        const next = checked
+            ? [...selectedMemberIds, memberId]
+            : selectedMemberIds.filter(id => id !== memberId)
+
+        setSelectedMemberIds(next)
+        if (splitType === "equal") {
+            updateShares(next)
+        }
+    }
+
+    // Calculate total shares amount for validation
+    const currentShares = form.watch("shares")
+    const currentSharesTotal = currentShares?.reduce((acc, curr) => acc + curr.amount, 0) || 0
+
     const onSubmit = async (data: ExpenseInsertSchema) => {
         try {
             await updateExpense(groupId, expense.id, data)
@@ -88,12 +142,7 @@ export function EditExpenseDialog({ groupId, expense }: { groupId: string; expen
         }
     }
 
-    const handleSplitEqually = (checkedMemberIds: string[]) => {
-        if (totalAmount <= 0) return;
-        const shareAmount = Number((totalAmount / checkedMemberIds.length).toFixed(2));
-        const shares = checkedMemberIds.map(id => ({ userId: id, amount: shareAmount }));
-        form.setValue("shares", shares);
-    }
+
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -134,6 +183,7 @@ export function EditExpenseDialog({ groupId, expense }: { groupId: string; expen
                                             placeholder="0.00"
                                             className="bg-background border-border"
                                             {...field}
+                                            value={isNaN(field.value) ? "" : field.value}
                                             onChange={e => field.onChange(e.target.valueAsNumber)}
                                         />
                                     </FormControl>
@@ -166,38 +216,91 @@ export function EditExpenseDialog({ groupId, expense }: { groupId: string; expen
                             )}
                         />
                         <div className="space-y-2">
-                            <FormLabel>Split With (Equal Split)</FormLabel>
-                            <div className="grid gap-2 border rounded-md p-2 border-border">
-                                {members.map((member) => (
-                                    <div key={member.id} className="flex items-center space-x-2">
-                                        <Checkbox
-                                            id={`split-edit-${member.id}`}
-                                            checked={form.watch("shares")?.some(s => s.userId === member.id)}
-                                            onCheckedChange={(checked) => {
-                                                const currentShares = form.getValues("shares") || [];
-                                                const currentIds = currentShares.map(s => s.userId);
-                                                let newIds = []
-                                                if (checked) {
-                                                    newIds = [...currentIds, member.id];
-                                                } else {
-                                                    newIds = currentIds.filter(id => id !== member.id);
-                                                }
-                                                handleSplitEqually(newIds);
-                                            }}
-                                        />
-                                        <label htmlFor={`split-edit-${member.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                            {member.name}
-                                        </label>
+                            <FormLabel>Split Method</FormLabel>
+                            <Tabs defaultValue="equal" onValueChange={setSplitType} className="w-full">
+                                <TabsList className="grid w-full grid-cols-2 bg-muted text-muted-foreground p-1">
+                                    <TabsTrigger value="equal">Equal</TabsTrigger>
+                                    <TabsTrigger value="unequal">Unequal</TabsTrigger>
+                                </TabsList>
+                                <TabsContent value="equal" className="mt-2">
+                                    <FormLabel className="text-sm font-medium">Split With</FormLabel>
+                                    <div className="grid gap-2 border rounded-md p-2 border-border mt-2">
+                                        {members.map((member) => (
+                                            <div key={member.id} className="flex items-center space-x-2">
+                                                <Checkbox
+                                                    id={`split-edit-${member.id}`}
+                                                    checked={selectedMemberIds.includes(member.id)} // Keep track of checked state for Equal split
+                                                    onCheckedChange={(checked) => handleCheckboxChange(checked as boolean, member.id)}
+                                                />
+                                                <label htmlFor={`split-edit-${member.id}`} className="text-sm font-medium">
+                                                    {member.name}
+                                                </label>
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
+                                </TabsContent>
+                                <TabsContent value="unequal" className="mt-2">
+                                    <div className="space-y-4 max-h-[200px] overflow-y-auto pr-2">
+                                        {members.map((member) => {
+                                            const share = currentShares?.find(s => s.userId === member.id)
+                                            const amount = share?.amount || 0
+
+                                            return (
+                                                <div key={member.id} className="flex items-center justify-between gap-4">
+                                                    <label htmlFor={`unequal-edit-${member.id}`} className="text-sm font-medium flex-1">
+                                                        {member.name}
+                                                    </label>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-sm text-muted-foreground">$</span>
+                                                        <Input
+                                                            id={`unequal-edit-${member.id}`}
+                                                            type="number"
+                                                            placeholder="0.00"
+                                                            value={amount || ""}
+                                                            className="w-24 h-8 bg-background border-border"
+                                                            onChange={(e) => {
+                                                                const val = e.target.valueAsNumber
+                                                                const newShares = [...(currentShares || [])]
+                                                                const idx = newShares.findIndex(s => s.userId === member.id)
+                                                                if (idx >= 0) {
+                                                                    if (isNaN(val) || val === 0) {
+                                                                        newShares[idx] = { userId: member.id, amount: isNaN(val) ? 0 : val }
+                                                                    } else {
+                                                                        newShares[idx] = { userId: member.id, amount: val }
+                                                                    }
+                                                                } else {
+                                                                    if (!isNaN(val) && val > 0) {
+                                                                        newShares.push({ userId: member.id, amount: val })
+                                                                    }
+                                                                }
+                                                                form.setValue("shares", newShares.filter(s => s.amount > 0))
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                    <div className="mt-2 flex justify-end text-sm text-muted-foreground">
+                                        <span className={Math.abs(currentSharesTotal - totalAmount) > 0.01 ? "text-loss" : "text-gain"}>
+                                            Total: ${currentSharesTotal.toFixed(2)} / ${totalAmount.toFixed(2)}
+                                        </span>
+                                    </div>
+                                </TabsContent>
+                            </Tabs>
+
                             <FormMessage className="text-loss">
                                 {form.formState.errors.shares?.message}
                             </FormMessage>
                         </div>
 
                         <DialogFooter>
-                            <Button type="submit" disabled={form.formState.isSubmitting}>Save Changes</Button>
+                            <Button
+                                type="submit"
+                                disabled={form.formState.isSubmitting || (splitType === 'equal' && selectedMemberIds.length === 0) || (splitType === 'unequal' && Math.abs(currentSharesTotal - totalAmount) > 0.01)}
+                            >
+                                Save Changes
+                            </Button>
                         </DialogFooter>
                     </form>
                 </Form>

@@ -20,6 +20,12 @@ export type Expense = {
     totalAmount: number
     paidBy: Member
     createdAt: string
+    shares: Share[]
+}
+
+export type Share = {
+    userId: string
+    amount: number
 }
 
 export type Member = {
@@ -124,6 +130,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     },
 
     fetchGroupData: async (groupId) => {
+        set({ isLoading: true })
         // We can fetch parallel
         // Fetch Expenses
         const fetchExpenses = fetch(`/api/groups/${groupId}/expenses`).then(res => res.json())
@@ -141,6 +148,8 @@ export const useAppStore = create<AppState>((set, get) => ({
             }
         } catch (error) {
             console.error("Failed to fetch group data", error)
+        } finally {
+            set({ isLoading: false });
         }
     },
     createGroup: async (groupData) => {

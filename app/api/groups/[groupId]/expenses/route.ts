@@ -26,9 +26,12 @@ export async function GET(
     const expenses = await db.query.expense.findMany({
       where: eq(expense.groupId, groupId),
       with: {
-        paidBy: true
+        paidBy: true,
+        shares: {
+          where: eq(expenseShare.userId, session.user.id),
+        }
       }
-    })
+    });
 
     return Response.json({
       expenses: expenses
@@ -157,7 +160,15 @@ export async function POST(
         }))
       );
 
-      return insertedExpense;
+      const expenseWithRelations = await tx.query.expense.findFirst({
+        where: eq(expense.id, insertedExpense.id),
+        with: {
+          paidBy: true,
+          shares: true
+        }
+      })
+
+      return expenseWithRelations;
     });
 
     return Response.json({ expense: result }, { status: 201 });

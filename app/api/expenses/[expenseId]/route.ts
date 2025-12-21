@@ -253,8 +253,14 @@ export async function PATCH(
           updatedAt: now,
         }))
       );
-
-      return updatedExpense;
+      const resultData = db.query.expense.findFirst({
+        where: eq(expense.id, updatedExpense.id),
+        with: {
+          paidBy: true,
+          shares: true
+        }
+      })
+      return resultData;
     });
 
     return Response.json({

@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { UserPlus } from "lucide-react"
 import { useAppStore } from "@/lib/store"
+import { UserCombobox } from "@/components/common/ComboBox"
 
 const addMemberSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -58,7 +59,7 @@ export function AddMemberDialog({ groupId }: { groupId: string }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="icon" className="h-8 w-8 rounded-full">
-            <UserPlus className="h-4 w-4" />
+          <UserPlus className="h-4 w-4" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px] bg-surface text-white border-border">
@@ -74,11 +75,22 @@ export function AddMemberDialog({ groupId }: { groupId: string }) {
               control={form.control}
               name="email"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input placeholder="user@example.com" className="bg-background border-border" {...field} />
-                  </FormControl>
+                <FormItem className="flex flex-col">
+                  <FormLabel>Search User</FormLabel>
+                  <UserCombobox
+                    onSelect={(user) => {
+                      form.setValue("email", user.email)
+                    }}
+                  />
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-sm text-muted-foreground">Selected:</span>
+                    <Input
+                      {...field}
+                      readOnly
+                      placeholder="Selected user email"
+                      className="bg-muted text-muted-foreground border-border h-8"
+                    />
+                  </div>
                   <FormMessage className="text-loss" />
                 </FormItem>
               )}
