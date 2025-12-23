@@ -38,7 +38,7 @@ export default function DashboardPage() {
                     icon={<IndianRupee className="h-4 w-4 text-brand" />}
                     amount={dashboardData.total_spendings / 100}
                     type={(dashboardData.total_spendings / 100) >= 0 ? "gain" : "loss"}
-                    description="Overall net position"
+                    description=""
                     showSign
                 />
                 <DashboardCard
@@ -46,14 +46,14 @@ export default function DashboardPage() {
                     icon={<TrendingDown className="h-4 w-4 text-loss" />}
                     amount={dashboardData.total_owes / 100}
                     type="loss"
-                    description="To 3 friends"
+                    description=""
                 />
                 <DashboardCard
                     title="You are owed"
                     icon={<TrendingUp className="h-4 w-4 text-gain" />}
                     amount={dashboardData.total_owed / 100}
                     type="gain"
-                    description="From 5 friends"
+                    description=""
                 />
             </div>
 
