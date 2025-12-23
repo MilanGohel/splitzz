@@ -15,10 +15,11 @@ import { headers } from "next/headers";
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ groupId: number }> }
+  { params }: { params: Promise<{ groupId: string }> }
 ) {
   try {
     const { groupId } = await params;
+    const groupIdInt = parseInt(groupId);
     const session = await auth.api.getSession({
       headers: await headers(),
     });
@@ -26,7 +27,7 @@ export async function GET(
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!(await isGroupMember(session.user.id, groupId))) {
+    if (!(await isGroupMember(session.user.id, groupIdInt))) {
       return Response.json(
         {
           error: "You are not a member of this group. You can't view expenses.",
@@ -36,7 +37,7 @@ export async function GET(
     }
 
     const expenses = await db.query.expense.findMany({
-      where: eq(expense.groupId, groupId),
+      where: eq(expense.groupId, groupIdInt),
       orderBy: desc(expense.createdAt),
       with: {
         paidBy: true,
@@ -55,10 +56,11 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ groupId: number }> }
+  { params }: { params: Promise<{ groupId: string }> }
 ) {
   try {
     const { groupId } = await params;
+    const groupIdInt = parseInt(groupId);
 
     const idempotencyKeyHeader = request.headers.get("Idempotency-Key");
     const body = await request.json();
@@ -86,7 +88,7 @@ export async function POST(
       .from(groupMember)
       .where(
         and(
-          eq(groupMember.groupId, groupId),
+          eq(groupMember.groupId, groupIdInt),
           inArray(groupMember.userId, Array.from(uniqueMemberSet))
         )
       );
@@ -124,12 +126,12 @@ export async function POST(
     const [groupData] = await db
       .select()
       .from(group)
-      .where(eq(group.id, groupId))
+      .where(eq(group.id, groupIdInt))
       .limit(1);
 
     if (!groupData) {
       return Response.json(
-        { error: `Group with ID ${groupId} not found.` },
+        { error: `Group with ID ${groupIdInt} not found.` },
         { status: 404 }
       );
     }
@@ -156,7 +158,7 @@ export async function POST(
         .insert(expense)
         .values({
           description,
-          groupId: groupId,
+          groupId: groupIdInt,
           paidBy,
           totalAmount: totalAmountCents,
         })

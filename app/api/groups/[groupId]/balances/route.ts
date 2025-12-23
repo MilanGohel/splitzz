@@ -3,15 +3,16 @@ import { eq, sql } from "drizzle-orm";
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ groupId: number }> }
+  { params }: { params: Promise<{ groupId: string }> }
 ) {
   const { groupId } = await params;
+  const groupIdInt = parseInt(groupId);
 
   // 1. Validate Group Existence
   const [groupData] = await db
     .select()
     .from(group)
-    .where(eq(group.id, groupId))
+    .where(eq(group.id, groupIdInt))
     .limit(1);
   if (!groupData) {
     return Response.json({ error: "Group not found" }, { status: 404 });
@@ -30,7 +31,7 @@ export async function GET(
         COALESCE((
           SELECT SUM(ex.total_amount)
           FROM expenses ex
-          WHERE ex.group_id = ${groupId} AND ex.paid_by = gm.user_id
+          WHERE ex.group_id = ${groupIdInt} AND ex.paid_by = gm.user_id
         ), 0)
         
         + -- PLUS
@@ -39,7 +40,7 @@ export async function GET(
         COALESCE((
           SELECT SUM(s.amount)
           FROM settlements s
-          WHERE s.group_id = ${groupId} AND s.from_user_id = gm.user_id
+          WHERE s.group_id = ${groupIdInt} AND s.from_user_id = gm.user_id
         ), 0)
 
         - -- MINUS
@@ -49,7 +50,7 @@ export async function GET(
           SELECT SUM(es.share_amount)
           FROM expense_shares es
           JOIN expenses ex ON es.expense_id = ex.id  -- JOIN required to filter by Group
-          WHERE ex.group_id = ${groupId} AND es.user_id = gm.user_id
+          WHERE ex.group_id = ${groupIdInt} AND es.user_id = gm.user_id
         ), 0)
 
         - -- MINUS
@@ -58,13 +59,13 @@ export async function GET(
         COALESCE((
           SELECT SUM(s.amount)
           FROM settlements s
-          WHERE s.group_id = ${groupId} AND s.to_user_id = gm.user_id
+          WHERE s.group_id = ${groupIdInt} AND s.to_user_id = gm.user_id
         ), 0)
 
       ) AS net_balance
     FROM group_members gm
     JOIN "user" u ON gm.user_id = u.id
-    WHERE gm.group_id = ${groupId}
+    WHERE gm.group_id = ${groupIdInt}
     ORDER BY net_balance DESC
   `);
 

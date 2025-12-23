@@ -7,11 +7,11 @@ import { z } from "zod";
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ expenseId: number }> }
+  { params }: { params: Promise<{ expenseId: string }> }
 ) {
   try {
     const { expenseId } = await params;
-
+    const expenseIdInt = parseInt(expenseId);
     // 1. Authenticate User
     const session = await auth.api.getSession({
       headers: await headers(),
@@ -22,7 +22,7 @@ export async function GET(
 
     // 2. Fetch the Expense first
     const expenseData = await db.query.expense.findFirst({
-      where: eq(expense.id, expenseId),
+      where: eq(expense.id, expenseIdInt),
       with: {
         paidBy: true
       }
@@ -57,7 +57,7 @@ export async function GET(
     const expenseSharesData = await db
       .select()
       .from(expenseShare)
-      .where(eq(expenseShare.expenseId, expenseId));
+      .where(eq(expenseShare.expenseId, expenseIdInt));
 
     return Response.json({
       expense: expenseData.totalAmount,
@@ -74,11 +74,11 @@ export async function GET(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ expenseId: number }> }
+  { params }: { params: Promise<{ expenseId: string }> }
 ) {
   try {
     const { expenseId } = await params;
-
+    const expenseIdInt = parseInt(expenseId);
     // 1. Authenticate
     const session = await auth.api.getSession({
       headers: await headers(),
@@ -94,7 +94,7 @@ export async function DELETE(
     const [expenseData] = await db
       .select()
       .from(expense)
-      .where(eq(expense.id, expenseId))
+      .where(eq(expense.id, expenseIdInt))
       .limit(1);
 
     if (!expenseData) {
@@ -127,7 +127,7 @@ export async function DELETE(
     // 4. Delete
     const result = await db
       .delete(expense)
-      .where(eq(expense.id, expenseId))
+      .where(eq(expense.id, expenseIdInt))
       .returning();
 
     return Response.json(
@@ -146,11 +146,11 @@ export async function DELETE(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ expenseId: number }> }
+  { params }: { params: Promise<{ expenseId: string }> }
 ) {
   try {
     const { expenseId } = await params;
-
+    const expenseIdInt = parseInt(expenseId);
     // 1. Authenticate
     const session = await auth.api.getSession({
       headers: await headers(),
@@ -163,7 +163,7 @@ export async function PATCH(
     const [existingExpense] = await db
       .select()
       .from(expense)
-      .where(eq(expense.id, expenseId))
+      .where(eq(expense.id, expenseIdInt))
       .limit(1);
 
     if (!existingExpense) {
@@ -235,19 +235,19 @@ export async function PATCH(
           totalAmount: totalAmountCents,
           updatedAt: now, // Important: Update the timestamp
         })
-        .where(eq(expense.id, expenseId))
+        .where(eq(expense.id, expenseIdInt))
         .returning();
 
       // B. DELETE old shares (Clean slate approach)
       await tx
         .delete(expenseShare)
-        .where(eq(expenseShare.expenseId, expenseId));
+        .where(eq(expenseShare.expenseId, expenseIdInt));
 
       // C. INSERT new shares
       await tx.insert(expenseShare).values(
         sharesWithCents.map((share) => ({
           userId: share.userId,
-          expenseId: expenseId,
+          expenseId: expenseIdInt,
           shareAmount: share.amountCents,
           createdAt: existingExpense.createdAt, // Keep original creation date
           updatedAt: now,

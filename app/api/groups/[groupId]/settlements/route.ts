@@ -7,7 +7,7 @@ import { headers } from "next/headers";
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ groupId: number }> }
+  { params }: { params: Promise<{ groupId: string }> }
 ) {
   const { groupId } = await params;
 
@@ -17,13 +17,13 @@ export async function GET(
   if (!session?.user.id) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  if (!await isGroupMember(session.user.id, groupId)) {
+  const groupIdInt = parseInt(groupId);
+  if (!await isGroupMember(session.user.id, groupIdInt)) {
     return Response.json({ error: "You are not a member of this group. You can't add settlements." }, { status: 403 });
   }
 
   const groupData = await db.query.group.findFirst({
-    where: eq(group.id, groupId),
+    where: eq(group.id, groupIdInt),
   });
 
   if (!groupData) {
@@ -36,7 +36,7 @@ export async function GET(
   }
 
   const settlements = db.query.settlement.findMany({
-    where: eq(settlement.groupId, groupId),
+    where: eq(settlement.groupId, groupIdInt),
     with: {
       fromUser: true,
       toUser: true,
@@ -54,10 +54,11 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ groupId: number }> }
+  { params }: { params: Promise<{ groupId: string }> }
 ) {
   try {
     const { groupId } = await params;
+    const groupIdInt = parseInt(groupId);
     const idempotencyKeyHeader = request.headers.get("Idempotency-Key");
 
     const session = await auth.api.getSession({
@@ -68,14 +69,14 @@ export async function POST(
     }
 
     const groupData = await db.query.group.findFirst({
-      where: eq(group.id, groupId),
+      where: eq(group.id, groupIdInt),
     });
 
     if (!groupData) {
       return Response.json({ error: "Group not found" }, { status: 404 });
     }
 
-    if (!await isGroupMember(session.user.id, groupId)) {
+    if (!await isGroupMember(session.user.id, groupIdInt)) {
       return Response.json({ error: "You are not a member of this group. You can't add settlements." }, { status: 403 });
     }
 
@@ -99,7 +100,7 @@ export async function POST(
     }
     const otherUserId = fromUserId === session.user.id ? toUserId : fromUserId;
 
-    if (!await isGroupMember(otherUserId, groupId)) {
+    if (!await isGroupMember(otherUserId, groupIdInt)) {
       return Response.json({ error: "You can't settle transactions with people outside the group." }, { status: 403 });
     }
 
@@ -127,7 +128,7 @@ export async function POST(
           amount: Math.round(amount * 100),
           fromUserId,
           toUserId,
-          groupId,
+          groupId: groupIdInt,
         })
         .returning();
 

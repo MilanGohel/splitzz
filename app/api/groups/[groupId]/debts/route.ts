@@ -7,9 +7,10 @@ import { headers } from "next/headers";
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ groupId: number }> }
+  { params }: { params: Promise<{ groupId: string }> }
 ) {
   const { groupId } = await params;
+  const groupIdInt = parseInt(groupId);
 
   const session = await auth.api.getSession({
     headers: await headers(),
@@ -19,14 +20,14 @@ export async function GET(
   }
 
   const groupData = await db.query.group.findFirst({
-    where: eq(group.id, groupId),
+    where: eq(group.id, groupIdInt),
   });
 
   if (!groupData) {
     return Response.json({ error: "Group not found" }, { status: 404 });
   }
 
-  if (!(await isGroupMember(session.user.id, groupId))) {
+  if (!(await isGroupMember(session.user.id, groupIdInt))) {
     return Response.json(
       {
         error: "You are not a member of this group. You can't remove members.",
@@ -38,7 +39,7 @@ export async function GET(
   let debts = [];
 
   if (groupData.simplifyDebts) {
-    const netBalances = await getNetBalances(groupId);
+    const netBalances = await getNetBalances(groupIdInt);
 
     const debtors = netBalances
       .filter((nb) => nb.net_balance < -0.01)
@@ -105,7 +106,7 @@ export async function GET(
       });
 
   } else {
-    debts = await getUserDebts(session.user.id, groupId);
+    debts = await getUserDebts(session.user.id, groupIdInt);
   }
 
   return Response.json({ debts });

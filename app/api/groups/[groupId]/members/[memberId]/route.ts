@@ -7,10 +7,11 @@ import { headers } from "next/headers";
 
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ groupId: number; memberId: string }> }
+  { params }: { params: Promise<{ groupId: string; memberId: string }> }
 ) {
   try {
     const { groupId, memberId } = await params;
+    const groupIdInt = parseInt(groupId);
 
     const session = await auth.api.getSession({
       headers: await headers()
@@ -19,7 +20,7 @@ export async function DELETE(
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!await isGroupMember(session.user.id, groupId)) {
+    if (!await isGroupMember(session.user.id, groupIdInt)) {
       return Response.json({ error: "You are not a member of this group. You can't remove members." }, { status: 403 });
     }
 
@@ -27,12 +28,12 @@ export async function DELETE(
       return Response.json({ error: "You can't remove yourself." }, { status: 400 });
     }
 
-    if (!await isGroupMember(memberId, groupId)) {
+    if (!await isGroupMember(memberId, groupIdInt)) {
       return Response.json({ error: "Member not found in this group" }, { status: 404 });
     }
 
     // 1. Check for active debts
-    const userDebts = await getUserDebts(memberId, groupId);
+    const userDebts = await getUserDebts(memberId, groupIdInt);
 
     if (userDebts.length > 0) {
       return Response.json(
@@ -47,7 +48,7 @@ export async function DELETE(
     const result = await db
       .delete(groupMember)
       .where(
-        and(eq(groupMember.groupId, groupId), eq(groupMember.userId, memberId))
+        and(eq(groupMember.groupId, groupIdInt), eq(groupMember.userId, memberId))
       )
       .returning();
 

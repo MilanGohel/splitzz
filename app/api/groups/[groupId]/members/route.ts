@@ -1,15 +1,15 @@
 import { db, groupMember } from "@/db/schema";
 import { isGroupMember } from "@/lib/helpers/checks";
 import { auth } from "@/utils/auth";
-import { and } from "drizzle-orm";
 import { headers } from "next/headers";
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ groupId: number }> }
+  { params }: { params: Promise<{ groupId: string }> }
 ) {
   try {
     const { groupId } = await params;
+    const groupIdInt = parseInt(groupId);
 
     const session = await auth.api.getSession({
       headers: await headers(),
@@ -20,14 +20,14 @@ export async function GET(
     }
 
     const groupFound = await db.query.group.findFirst({
-      where: (g, { eq }) => eq(g.id, groupId),
+      where: (g, { eq }) => eq(g.id, groupIdInt),
     });
 
     if (!groupFound) {
       return Response.json({ error: "Group not found" }, { status: 404 });
     }
 
-    if (!(await isGroupMember(session.user.id, groupId))) {
+    if (!(await isGroupMember(session.user.id, groupIdInt))) {
       return Response.json(
         {
           error:
@@ -38,7 +38,7 @@ export async function GET(
     }
 
     const result = await db.query.groupMember.findMany({
-      where: (gm, { eq }) => eq(gm.groupId, Number(groupId)),
+      where: (gm, { eq }) => eq(gm.groupId, groupIdInt),
       with: {
         user: true,
       },
@@ -60,10 +60,11 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ groupId: number }> }
+  { params }: { params: Promise<{ groupId: string }> }
 ) {
   try {
     const { groupId } = await params;
+    const groupIdInt = parseInt(groupId);
 
     const session = await auth.api.getSession({
       headers: await headers(),
@@ -73,13 +74,13 @@ export async function POST(
     }
 
     const groupFound = await db.query.group.findFirst({
-      where: (g, { eq }) => eq(g.id, groupId),
+      where: (g, { eq }) => eq(g.id, groupIdInt),
     });
     if (!groupFound) {
       return Response.json({ error: "Group not found" }, { status: 404 });
     }
 
-    if (!(await isGroupMember(session.user.id, groupId))) {
+    if (!(await isGroupMember(session.user.id, groupIdInt))) {
       return Response.json(
         {
           error: "You are not a member of this group. You can't add new user.",
@@ -115,7 +116,7 @@ export async function POST(
     // Check if already a member
     const existingMember = await db.query.groupMember.findFirst({
       where: (gm, { and, eq }) =>
-        and(eq(gm.groupId, groupId), eq(gm.userId, userId)),
+        and(eq(gm.groupId, groupIdInt), eq(gm.userId, userId)),
     });
 
     if (existingMember) {
@@ -128,7 +129,7 @@ export async function POST(
     const result = await db
       .insert(groupMember)
       .values({
-        groupId,
+        groupId: groupIdInt,
         userId,
       })
       .returning();

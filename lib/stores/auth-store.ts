@@ -1,4 +1,4 @@
-// lib/auth-store.ts
+
 import { create } from "zustand";
 import { authClient } from "@/utils/auth-client";
 
