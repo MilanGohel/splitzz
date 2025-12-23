@@ -16,5 +16,9 @@ export const auth = betterAuth({
             clientSecret: process.env.GOOGLE_CLIENT_SECRET!
         }
     },
+    trustedOrigins: [
+        "https://splitzz-sand.vercel.app",
+        "http://localhost:3000"
+    ],
     plugins: [nextCookies()]
 });
