@@ -1,4 +1,11 @@
-import { db, expense, expenseShare, group, groupMember, idempotencyKey } from "@/db/schema";
+import {
+  db,
+  expense,
+  expenseShare,
+  group,
+  groupMember,
+  idempotencyKey,
+} from "@/db/schema";
 import { expenseInsertSchema } from "@/lib/zod/expense";
 import { eq, desc, inArray, and } from "drizzle-orm";
 import z from "zod";
@@ -13,28 +20,32 @@ export async function GET(
   try {
     const { groupId } = await params;
     const session = await auth.api.getSession({
-      headers: await headers()
-    })
+      headers: await headers(),
+    });
     if (!session?.user.id) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!await isGroupMember(session.user.id, groupId)) {
-      return Response.json({ error: "You are not a member of this group. You can't view expenses." }, { status: 403 });
+    if (!(await isGroupMember(session.user.id, groupId))) {
+      return Response.json(
+        {
+          error: "You are not a member of this group. You can't view expenses.",
+        },
+        { status: 403 }
+      );
     }
 
     const expenses = await db.query.expense.findMany({
       where: eq(expense.groupId, groupId),
+      orderBy: desc(expense.createdAt),
       with: {
         paidBy: true,
-        shares: {
-          where: eq(expenseShare.userId, session.user.id),
-        }
-      }
+        shares: true,
+      },
     });
 
     return Response.json({
-      expenses: expenses
+      expenses: expenses,
     });
   } catch (error) {
     console.error("Error fetching expenses:", error);
@@ -92,7 +103,7 @@ export async function POST(
 
     const sharesWithCents = shares.map((share) => ({
       ...share,
-      amountCents: Math.round(share.amount * 100),
+      amountCents: Math.round(share.shareAmount * 100),
     }));
 
     const sumOfShares = sharesWithCents.reduce(
@@ -104,8 +115,7 @@ export async function POST(
       return Response.json(
         {
           error: "Validation Error",
-          message: `Total amount (${totalAmount}) does not equal the sum of shares (${sumOfShares
-            })`,
+          message: `Total amount (${totalAmount}) does not equal the sum of shares (${sumOfShares})`,
         },
         { status: 400 }
       );
@@ -132,7 +142,7 @@ export async function POST(
             key: idempotencyKeyHeader,
             endpoint: request.url,
             responseBody: "PENDING",
-            userId: paidBy
+            userId: paidBy,
           })
           .onConflictDoNothing()
           .returning();
@@ -164,9 +174,9 @@ export async function POST(
         where: eq(expense.id, insertedExpense.id),
         with: {
           paidBy: true,
-          shares: true
-        }
-      })
+          shares: true,
+        },
+      });
 
       return expenseWithRelations;
     });

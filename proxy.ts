@@ -11,12 +11,19 @@ export async function proxy(request: NextRequest) {
         if (request.nextUrl.pathname.startsWith('/api')) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
-        return NextResponse.redirect(new URL("/sign-in", request.url));
+        return NextResponse.redirect(new URL("/login", request.url));
     }
 
     return NextResponse.next();
 }
 
 export const config = {
-    matcher: ["/dashboard", "/"], // Specify the routes the middleware applies to
+    matcher: [
+        "/dashboard/:path*",
+        "/groups/:path*",
+        "/api/expenses/:path*",
+        "/api/groups/:path*",
+        "/api/users/:path*",
+        "/"
+    ], 
 };

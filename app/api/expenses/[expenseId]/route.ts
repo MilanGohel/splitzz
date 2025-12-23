@@ -207,7 +207,7 @@ export async function PATCH(
     const totalAmountCents = Math.round(totalAmount * 100);
     const sharesWithCents = shares.map((share) => ({
       ...share,
-      amountCents: Math.round(share.amount * 100),
+      amountCents: Math.round(share.shareAmount * 100),
     }));
 
     const sumOfShares = sharesWithCents.reduce((sum, s) => sum + s.amountCents, 0);

@@ -37,6 +37,10 @@ export async function GET(
 
   const settlements = db.query.settlement.findMany({
     where: eq(settlement.groupId, groupId),
+    with: {
+      fromUser: true,
+      toUser: true,
+    }
   });
 
   return Response.json(

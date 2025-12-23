@@ -24,7 +24,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { UserPlus } from "lucide-react"
-import { useAppStore } from "@/lib/store"
+import { useGroupStore } from "@/lib/stores/group-store"
 import { UserCombobox } from "@/components/common/ComboBox"
 
 const addMemberSchema = z.object({
@@ -35,7 +35,7 @@ type AddMemberSchema = z.infer<typeof addMemberSchema>
 
 export function AddMemberDialog({ groupId }: { groupId: string }) {
   const [open, setOpen] = useState(false)
-  const addMember = useAppStore.getState().addMember
+  const addMember = useGroupStore.getState().addMember
 
   const form = useForm<AddMemberSchema>({
     resolver: zodResolver(addMemberSchema),
@@ -62,7 +62,7 @@ export function AddMemberDialog({ groupId }: { groupId: string }) {
           <UserPlus className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px] bg-surface text-white border-border">
+      <DialogContent className="sm:max-w-[425px] bg-background text-foreground border-border">
         <DialogHeader>
           <DialogTitle>Add Member</DialogTitle>
           <DialogDescription>

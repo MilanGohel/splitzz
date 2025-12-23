@@ -26,12 +26,12 @@ import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { Plus } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useAppStore } from "@/lib/store"
+import { useGroupStore } from "@/lib/stores/group-store"
 
 export function CreateGroupDialog() {
   const [open, setOpen] = useState(false)
   const router = useRouter()
-  const createGroup = useAppStore((state) => state.createGroup)
+  const createGroup = useGroupStore((state) => state.createGroup)
   
   const form = useForm<GroupInsertInput>({
     resolver: zodResolver(groupInsertSchema),
