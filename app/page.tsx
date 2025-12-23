@@ -62,7 +62,7 @@ const HeroSection = memo(function HeroSection() {
       <div className="flex flex-col items-center">
         {/* Hero Text & CTA */}
         <div className="text-center max-w-4xl mb-12">
-          <h1 className="text-3xl lg:text-6xl font-bold text-white mb-6 text-balance leading-tight">
+          <h1 className="text-4xl lg:text-6xl font-bold text-white mb-6 text-balance leading-tight">
             <span>Split Costs,</span>
             <span className="text-[#10B981]"> Simplify Debts</span>
             <br />
