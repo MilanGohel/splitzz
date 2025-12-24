@@ -9,28 +9,15 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // Uses your --color-brand (#10B981)
-        default: "bg-brand text-white hover:bg-brand/90 shadow-md",
-        
-        // Uses your --color-loss (#F97316) for destructive actions
-        destructive: "bg-loss text-white hover:bg-loss/90 shadow-sm",
-        
-        // Uses --color-background (#121212) and --color-surface (#1E1E1E)
+        default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-md",
+        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-sm",
         outline:
-          "border border-surface bg-background text-white hover:bg-surface shadow-xs",
-        
-        // Uses --color-surface (#1E1E1E) for a subtle secondary look
+          "border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground shadow-xs",
         secondary:
-          "bg-surface text-white hover:bg-muted/20",
-        
-        // Uses --color-muted for text, highlighting to white on surface hover
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost:
-          "hover:bg-surface hover:text-white",
-        
-        // Link style using the brand color
-        link: "text-brand underline-offset-4 hover:underline",
-        
-        // Success variant using --color-gain (#22C55E)
+          "hover:bg-accent hover:text-accent-foreground",
+        link: "text-primary underline-offset-4 hover:underline",
         success: "bg-gain text-white hover:bg-gain/90",
       },
       size: {

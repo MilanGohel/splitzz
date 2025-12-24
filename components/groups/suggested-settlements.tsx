@@ -9,14 +9,15 @@ import { ArrowRight, Check, Loader2 } from "lucide-react";
 import { SettlementDialog } from "./settlement-dialog";
 
 interface SuggestedSettlementsProps {
-    groupId: string;
+    groupId: number;
 }
 
 export function SuggestedSettlements({ groupId }: SuggestedSettlementsProps) {
     const {
         suggestedSettlements,
         fetchSuggestedSettlements,
-        isLoading,
+        isFetchingSettlements,
+        error,
     } = useSettlementStore();
     const [selectedSettlement, setSelectedSettlement] = useState<SuggestedSettlement | null>(null);
 
@@ -26,7 +27,7 @@ export function SuggestedSettlements({ groupId }: SuggestedSettlementsProps) {
         fetchSuggestedSettlements(groupId);
     }, [groupId, fetchSuggestedSettlements]);
 
-    if (isLoading && settlements.length === 0) {
+    if (isFetchingSettlements && settlements.length === 0) {
         return (
             <div className="flex h-64 w-full items-center justify-center">
                 <Loader2 className="h-6 w-6 animate-spin" />
@@ -34,9 +35,27 @@ export function SuggestedSettlements({ groupId }: SuggestedSettlementsProps) {
         );
     }
 
+    if (error) {
+        return (
+            <Card className="bg-card border-border text-card-foreground">
+                <CardContent className="flex flex-col items-center justify-center p-8 text-center">
+                    <p className="text-destructive mb-2">Failed to load settlements</p>
+                    <p className="text-sm text-muted-foreground">{error}</p>
+                    <Button
+                        variant="outline"
+                        className="mt-4"
+                        onClick={() => fetchSuggestedSettlements(groupId)}
+                    >
+                        Try Again
+                    </Button>
+                </CardContent>
+            </Card>
+        );
+    }
+
     if (settlements.length === 0) {
         return (
-            <Card className="bg-surface border-border text-white">
+            <Card className="bg-card border-border text-card-foreground">
                 <CardContent className="flex flex-col items-center justify-center p-8">
                     <Check className="h-8 w-8 text-green-500 mb-2" />
                     <p className="text-muted-foreground">You are all settled up!</p>
@@ -48,7 +67,7 @@ export function SuggestedSettlements({ groupId }: SuggestedSettlementsProps) {
     return (
         <div className="grid gap-4">
             {settlements.map((settlement, index) => (
-                <Card key={index} className="bg-surface border-border text-white">
+                <Card key={index} className="bg-card border-border text-card-foreground">
                     <div className="flex items-center justify-between p-4">
                         <div className="flex items-center gap-4">
                             <Avatar>
@@ -73,7 +92,7 @@ export function SuggestedSettlements({ groupId }: SuggestedSettlementsProps) {
                             </div>
                         </div>
                         <Button
-                            variant={settlement.type === "PAYABLE" ? "default" : "secondary"}
+                            variant={settlement.type === "PAYABLE" ? "destructive" : "default"}
                             onClick={() => setSelectedSettlement(settlement)}
                         >
                             Settle Up

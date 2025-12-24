@@ -60,7 +60,7 @@ export function ExpenseDialog({
   expense,
   trigger,
 }: {
-  groupId: string;
+  groupId: number;
   mode: "add" | "edit";
   expense?: Expense;
   trigger: React.ReactNode;
@@ -70,8 +70,9 @@ export function ExpenseDialog({
   const rawMembers = useGroupStore((s) => s.members[groupId]);
   const members: Member[] = rawMembers ?? [];
 
-  const createExpense = useGroupStore((s) => s.createExpense);
-  const updateExpense = useGroupStore((s) => s.updateExpense);
+  const { createExpense, updateExpense, isCreatingExpense, isUpdatingExpense } = useGroupStore();
+
+  const isLoading = mode === "add" ? isCreatingExpense : isUpdatingExpense;
 
   /* ---------------- local state ---------------- */
 
@@ -215,7 +216,7 @@ export function ExpenseDialog({
             <SelectContent>
               {members.map((m) => (
                 <SelectItem key={m.id} value={m.id}>
-                  {m.name}
+                  {m.name} {`(${m.email})`}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -241,7 +242,7 @@ export function ExpenseDialog({
                       toggleEqualMember(m.id, c as boolean)
                     }
                   />
-                  <span>{m.name}</span>
+                  <span>{m.name} {`(${m.email})`}</span>
                 </div>
               ))}
             </TabsContent>
@@ -285,10 +286,15 @@ export function ExpenseDialog({
               disabled={
                 (splitType === "equal" && selectedIds.length === 0) ||
                 (splitType === "unequal" &&
-                  Math.abs(unequalTotal - totalAmount) > 0.01)
+                  Math.abs(unequalTotal - totalAmount) > 0.01) ||
+                isLoading
               }
             >
-              {mode === "add" ? "Add Expense" : "Update Expense"}
+              {isLoading
+                ? "Saving..."
+                : mode === "add"
+                  ? "Add Expense"
+                  : "Update Expense"}
             </Button>
           </DialogFooter>
         </form>

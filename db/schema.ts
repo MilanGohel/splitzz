@@ -245,6 +245,27 @@ export const expenseShareRelations = relations(expenseShare, ({ one }) => ({
   }),
 }));
 
+export const activity = pgTable("activities", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  groupId: text("group_id").notNull().references(() => group.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  type: text("type").notNull(),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").$onUpdate(() => new Date())
+});
+
+export const activityRelations = relations(activity, ({ one }) => ({
+  user: one(user, {
+    fields: [activity.userId],
+    references: [user.id]
+  }),
+  group: one(group, {
+    fields: [activity.groupId],
+    references: [group.id]
+  })
+}))
+
 const schema = {
   user,
   session,
@@ -264,6 +285,8 @@ const schema = {
   settlementRelations,
   expenseRelations,
   expenseShareRelations,
+  activity,
+  activityRelations
 };
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL! })

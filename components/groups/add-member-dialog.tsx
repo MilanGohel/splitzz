@@ -33,9 +33,9 @@ const addMemberSchema = z.object({
 
 type AddMemberSchema = z.infer<typeof addMemberSchema>
 
-export function AddMemberDialog({ groupId }: { groupId: string }) {
+export function AddMemberDialog({ groupId }: { groupId: number }) {
   const [open, setOpen] = useState(false)
-  const addMember = useGroupStore.getState().addMember
+  const { addMember, isAddingMember } = useGroupStore()
 
   const form = useForm<AddMemberSchema>({
     resolver: zodResolver(addMemberSchema),
@@ -62,7 +62,7 @@ export function AddMemberDialog({ groupId }: { groupId: string }) {
           <UserPlus className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px] bg-background text-foreground border-border">
+      <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
         <DialogHeader>
           <DialogTitle>Add Member</DialogTitle>
           <DialogDescription>
@@ -88,16 +88,16 @@ export function AddMemberDialog({ groupId }: { groupId: string }) {
                       {...field}
                       readOnly
                       placeholder="Selected user email"
-                      className="bg-muted text-muted-foreground border-border h-8"
+                      className="bg-muted text-muted-foreground border-input h-8"
                     />
                   </div>
-                  <FormMessage className="text-loss" />
+                  <FormMessage className="text-destructive" />
                 </FormItem>
               )}
             />
             <DialogFooter>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                Add Member
+              <Button type="submit" disabled={isAddingMember}>
+                {isAddingMember ? "Adding..." : "Add Member"}
               </Button>
             </DialogFooter>
           </form>

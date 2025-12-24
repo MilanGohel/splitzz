@@ -1,4 +1,4 @@
-import { db, expense, settlement } from "@/db/schema";
+import { db, group } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { isGroupMember } from "@/lib/helpers/checks";
 import { auth } from "@/utils/auth";
@@ -16,14 +16,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ grou
     }
 
     if (!await isGroupMember(session.user.id, groupIdInt)) {
-        return Response.json({ error: "You are not a member of this group. You can't view settlements." }, { status: 403 });
+        return Response.json({ error: "You are not a member of this group." }, { status: 403 });
     }
 
     // Fetch group details from the database
-    const settlements = await db.select().from(settlement).where(eq(settlement.groupId, groupIdInt));
+    const [groupData] = await db.select().from(group).where(eq(group.id, groupIdInt)).limit(1);
+
+    if (!groupData) {
+        return Response.json({ error: "Group not found" }, { status: 404 });
+    }
 
     return new Response(
-        JSON.stringify({ settlements }),
+        JSON.stringify({ group: groupData }),
         {
             status: 200,
             headers: { "Content-Type": "application/json" }

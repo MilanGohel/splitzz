@@ -78,7 +78,7 @@ export function UserCombobox({ onSelect }: UserComboboxProps) {
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[300px] p-0 bg-surface text-white border-border" align="start">
+            <PopoverContent className="w-[300px] p-0 bg-popover text-popover-foreground border-border" align="start">
                 <Command shouldFilter={false}>
                     <CommandInput
                         placeholder="Type at least 3 chars..."

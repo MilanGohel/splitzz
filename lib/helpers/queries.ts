@@ -1,4 +1,4 @@
-import { db } from "@/db/schema";
+import { activity, db } from "@/db/schema";
 import { sql } from "drizzle-orm";
 
 export type DashboardDuration = "this_month" | "this_year" | "all_time";
@@ -32,7 +32,7 @@ export async function getUserDashboardData(userId: string, duration: DashboardDu
             -- 1. Expenses I paid for others (I lent money) -> Positive (+)
             SELECT es.user_id as other_user_id, es.share_amount as amount 
             FROM expenses ex
-            JOIN expense_shares es ON ex.id = es.expense_id
+            JOIN expense_shares es ON ex.id = es.expense_id 
             WHERE ex.paid_by = ${userId} AND es.user_id != ${userId}
             
             UNION ALL
@@ -64,15 +64,19 @@ export async function getUserDashboardData(userId: string, duration: DashboardDu
     SELECT 
         -- Sum of all positive balances (People owe me)
         COALESCE(SUM(CASE WHEN net_balance > 0 THEN net_balance ELSE 0 END), 0) as total_owed,
+        COUNT(CASE WHEN net_balance > 0 THEN 1 END) as no_of_people_owing,
         
         -- Sum of all negative balances (I owe people)
-        COALESCE(ABS(SUM(CASE WHEN net_balance < 0 THEN net_balance ELSE 0 END)), 0) as total_owes
+        COALESCE(ABS(SUM(CASE WHEN net_balance < 0 THEN net_balance ELSE 0 END)), 0) as total_owes,
+        COUNT(CASE WHEN net_balance < 0 THEN 1 END) as no_of_people_owed
     FROM UserBalances
   `);
 
   const rows = result.rows as {
     total_owed: number;
     total_owes: number;
+    no_of_people_owing: number;
+    no_of_people_owed: number;
   }[];
 
   const totalSpendingsVal = totalSpendings.rows as {
@@ -86,6 +90,8 @@ export async function getUserDashboardData(userId: string, duration: DashboardDu
     total_owed: Number(row.total_owed),
     total_owes: Number(row.total_owes),
     total_spendings: Number(totalSpending),
+    no_of_people_owing: Number(row.no_of_people_owing),
+    no_of_people_owed: Number(row.no_of_people_owed),
   };
 }
 
@@ -151,13 +157,13 @@ export async function getUserDebts(userId: string, groupId: number) {
 export async function getNetBalances(groupId: number) {
   const balances = await db.execute(sql`   
         SELECT 
-            gm.user_id, 
+            gm.user_id as user_id, 
             u.name,
             u.image,
             (
                 -- 1. (+) Total amount this user paid for expenses
                 COALESCE((
-                    SELECT SUM(ex.amount) -- Changed from total_amount to amount (check your schema)
+                    SELECT SUM(ex.total_amount)
                     FROM expenses ex
                     WHERE ex.group_id = ${groupId} AND ex.paid_by = gm.user_id
                 ), 0)
@@ -185,7 +191,7 @@ export async function getNetBalances(groupId: number) {
                 ), 0)
             ) AS net_balance
         FROM group_members gm
-        JOIN user u ON gm.user_id = u.id
+        JOIN "user" u ON gm.user_id = u.id
         WHERE gm.group_id = ${groupId}
     `);
 
@@ -203,4 +209,12 @@ export async function getNetBalances(groupId: number) {
     net_balance: Number(row.net_balance),
     type: Number(row.net_balance) > 0 ? "RECEIVABLE" : "PAYABLE",
   }));
+}
+
+export async function insertActivity(userId: string, groupId: string, type: string) {
+  await db.insert(activity).values({
+    userId,
+    groupId,
+    type,
+  });
 }

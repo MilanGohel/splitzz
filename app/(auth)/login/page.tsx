@@ -23,16 +23,16 @@ export default function LoginPage() {
   const isAuthChecking = useAuthStore((state) => state.isAuthChecking);
 
   useEffect(() => {
-    debugger;
+
     if (!isAuthChecking && isLoggedIn) {
       router.push("/dashboard");
     }
   }, [isLoggedIn, router, isAuthChecking]);
-  
+
   if (isAuthChecking || isLoggedIn) {
     return (
       <>
-        <main className="w-full h-screen flex items-center justify-center bg-black">
+        <main className="w-full h-screen flex items-center justify-center bg-background">
           <Loader2 className="animate-spin" />
         </main>
       </>
@@ -57,9 +57,9 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md border-surface bg-surface text-white">
+      <Card className="w-full max-w-md border-border bg-card text-card-foreground">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-brand">
+          <CardTitle className="text-2xl font-bold text-primary">
             Welcome to Splitzz
           </CardTitle>
           <CardDescription className="text-muted-foreground">

@@ -31,13 +31,13 @@ import { useGroupStore } from "@/lib/stores/group-store"
 export function CreateGroupDialog() {
   const [open, setOpen] = useState(false)
   const router = useRouter()
-  const createGroup = useGroupStore((state) => state.createGroup)
-  
+  const { createGroup, isCreatingGroup } = useGroupStore()
+
   const form = useForm<GroupInsertInput>({
     resolver: zodResolver(groupInsertSchema),
     defaultValues: {
-        name: "",
-        description: ""
+      name: "",
+      description: ""
     }
   })
 
@@ -47,7 +47,7 @@ export function CreateGroupDialog() {
       toast.success("Group created successfully")
       setOpen(false)
       form.reset()
-      router.refresh() 
+      router.refresh()
     } catch (error) {
       toast.error("Failed to create group")
     }
@@ -61,7 +61,7 @@ export function CreateGroupDialog() {
           Create Group
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px] bg-surface text-white border-border">
+      <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
         <DialogHeader>
           <DialogTitle>Create Group</DialogTitle>
           <DialogDescription className="text-muted-foreground">
@@ -75,15 +75,15 @@ export function CreateGroupDialog() {
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-white">Name</FormLabel>
+                  <FormLabel className="text-foreground">Name</FormLabel>
                   <FormControl>
-                    <Input 
-                        placeholder="Trip to Goa" 
-                        className="bg-background border-border"
-                        {...field} 
+                    <Input
+                      placeholder="Trip to Goa"
+                      className="bg-background border-input"
+                      {...field}
                     />
                   </FormControl>
-                  <FormMessage className="text-loss" />
+                  <FormMessage className="text-destructive" />
                 </FormItem>
               )}
             />
@@ -92,23 +92,23 @@ export function CreateGroupDialog() {
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-white">Description (Optional)</FormLabel>
+                  <FormLabel className="text-foreground">Description (Optional)</FormLabel>
                   <FormControl>
-                     {/* Handling optional string/null effectively */}
-                    <Input 
-                        placeholder="Expenses for the weekend trip" 
-                        className="bg-background border-border"
-                        {...field}
-                        value={field.value || ""} 
+                    {/* Handling optional string/null effectively */}
+                    <Input
+                      placeholder="Expenses for the weekend trip"
+                      className="bg-background border-input"
+                      {...field}
+                      value={field.value || ""}
                     />
                   </FormControl>
-                  <FormMessage className="text-loss" />
+                  <FormMessage className="text-destructive" />
                 </FormItem>
               )}
             />
             <DialogFooter>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? "Creating..." : "Create Group"}
+              <Button type="submit" disabled={isCreatingGroup}>
+                {isCreatingGroup ? "Creating..." : "Create Group"}
               </Button>
             </DialogFooter>
           </form>

@@ -18,10 +18,11 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  isAuthChecking: true,
+  isAuthChecking: false,
 
   fetchUser: async () => {
     try {
+      set({ isAuthChecking: true });
       const { data } = await authClient.getSession();
       if (data?.user) {
         set({

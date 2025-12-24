@@ -7,7 +7,7 @@ import {
   idempotencyKey,
 } from "@/db/schema";
 import { expenseInsertSchema } from "@/lib/zod/expense";
-import { eq, desc, inArray, and } from "drizzle-orm";
+import { eq, desc, inArray, and, sql } from "drizzle-orm";
 import z from "zod";
 import { isGroupMember } from "@/lib/helpers/checks";
 import { auth } from "@/utils/auth";
@@ -36,17 +36,35 @@ export async function GET(
       );
     }
 
+    const url = new URL(request.url);
+    const limit = parseInt(url.searchParams.get("limit") || "20");
+    const offset = parseInt(url.searchParams.get("offset") || "0");
+
     const expenses = await db.query.expense.findMany({
       where: eq(expense.groupId, groupIdInt),
       orderBy: desc(expense.createdAt),
+      limit: limit,
+      offset: offset,
       with: {
         paidBy: true,
         shares: true,
       },
     });
 
+    const totalCountResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(expense)
+      .where(eq(expense.groupId, groupIdInt));
+
+    const total = Number(totalCountResult[0]?.count || 0);
+
     return Response.json({
       expenses: expenses,
+      pagination: {
+        limit,
+        offset,
+        total,
+      }
     });
   } catch (error) {
     console.error("Error fetching expenses:", error);

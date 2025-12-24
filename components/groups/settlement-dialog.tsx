@@ -20,7 +20,7 @@ interface SettlementDialogProps {
     isOpen: boolean;
     onClose: () => void;
     settlement: SuggestedSettlement;
-    groupId: string;
+    groupId: number;
 }
 
 export function SettlementDialog({
@@ -30,7 +30,7 @@ export function SettlementDialog({
     groupId,
 }: SettlementDialogProps) {
     const [amount, setAmount] = useState<string>(Math.abs(settlement.amount / 100).toString());
-    const { settleDebt, isLoading } = useSettlementStore();
+    const { settleDebt, isSettlingDebt } = useSettlementStore();
     const user = useAuthStore((state) => state.user);
 
     const handleSettle = async () => {
@@ -62,7 +62,7 @@ export function SettlementDialog({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[425px] bg-surface border-border text-white">
+            <DialogContent className="sm:max-w-[425px] bg-card border-border text-card-foreground">
                 <DialogHeader>
                     <DialogTitle>Settle Up</DialogTitle>
                     <DialogDescription>
@@ -86,11 +86,11 @@ export function SettlementDialog({
                     </div>
                 </div>
                 <DialogFooter>
-                    <Button variant="outline" onClick={onClose} disabled={isLoading}>
+                    <Button variant="outline" onClick={onClose} disabled={isSettlingDebt}>
                         Cancel
                     </Button>
-                    <Button onClick={handleSettle} disabled={isLoading}>
-                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <Button onClick={handleSettle} disabled={isSettlingDebt}>
+                        {isSettlingDebt && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Settle
                     </Button>
                 </DialogFooter>

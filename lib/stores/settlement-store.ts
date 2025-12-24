@@ -15,13 +15,16 @@ export type SuggestedSettlement = {
 };
 
 interface SettlementState {
-    suggestedSettlements: Record<string, SuggestedSettlement[]>;
-    isLoading: boolean;
+    suggestedSettlements: Record<number, SuggestedSettlement[]>;
     error: string | null;
 
-    fetchSuggestedSettlements: (groupId: string) => Promise<void>;
+    // Loading States
+    isFetchingSettlements: boolean;
+    isSettlingDebt: boolean;
+
+    fetchSuggestedSettlements: (groupId: number) => Promise<void>;
     settleDebt: (
-        groupId: string,
+        groupId: number,
         settlementData: {
             fromUserId: string;
             toUserId: string;
@@ -46,11 +49,12 @@ const api = axios.create({
 
 export const useSettlementStore = create<SettlementState>((set, get) => ({
     suggestedSettlements: {},
-    isLoading: false,
     error: null,
+    isFetchingSettlements: false,
+    isSettlingDebt: false,
 
     fetchSuggestedSettlements: async (groupId) => {
-        set({ isLoading: true, error: null });
+        set({ isFetchingSettlements: true, error: null });
         try {
             const { data } = await api.get(`/api/groups/${groupId}/debts`);
             set((state) => ({
@@ -63,12 +67,12 @@ export const useSettlementStore = create<SettlementState>((set, get) => ({
             console.error("Failed to fetch suggested settlements:", error);
             set({ error: error.message || "Failed to fetch settlements" });
         } finally {
-            set({ isLoading: false });
+            set({ isFetchingSettlements: false });
         }
     },
 
     settleDebt: async (groupId, settlementData) => {
-        set({ isLoading: true, error: null });
+        set({ isSettlingDebt: true, error: null });
         try {
             await api.post(`/api/groups/${groupId}/settlements`, settlementData);
             toast.success("Settlement recorded successfully");
@@ -82,7 +86,7 @@ export const useSettlementStore = create<SettlementState>((set, get) => ({
             set({ error: errorMessage });
             throw error;
         } finally {
-            set({ isLoading: false });
+            set({ isSettlingDebt: false });
         }
     },
 }));

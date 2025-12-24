@@ -6,18 +6,21 @@ import { memo, useEffect, useState } from "react"
 import { toast } from "sonner";
 
 export default function DashboardPage() {
-    const [isFetchingDashboardData, setIsFetchingDashboardData] = useState(true);
+    const [isFetchingDashboardData, setIsFetchingDashboardData] = useState(false);
     const [dashboardData, setDashboardData] = useState({
         total_spendings: 0,
         total_owed: 0,
         total_owes: 0,
+        no_of_people_owing: 0,
+        no_of_people_owed: 0,
     })
     useEffect(() => {
         async function fetchDashboardData() {
+            setIsFetchingDashboardData(true);
             try {
                 const res = await fetch(`/api/dashboard?duration=this_month`);
                 if (!res.ok) throw new Error();
-                debugger;
+
                 const data = await res.json();
                 setDashboardData(data.data);
             } catch {
@@ -35,30 +38,33 @@ export default function DashboardPage() {
             <div className="grid gap-4 md:grid-cols-3">
                 <DashboardCard
                     title="Total Spendings"
-                    icon={<IndianRupee className="h-4 w-4 text-brand" />}
+                    icon={<IndianRupee className="h-4 w-4 text-primary" />}
                     amount={dashboardData.total_spendings / 100}
                     type={(dashboardData.total_spendings / 100) >= 0 ? "gain" : "loss"}
-                    description=""
+                    description="Overall spendings across groups"
                     showSign
+                    isLoading={isFetchingDashboardData}
                 />
                 <DashboardCard
                     title="You Owe"
                     icon={<TrendingDown className="h-4 w-4 text-loss" />}
                     amount={dashboardData.total_owes / 100}
                     type="loss"
-                    description=""
+                    description={`${dashboardData.no_of_people_owing} friends`}
+                    isLoading={isFetchingDashboardData}
                 />
                 <DashboardCard
                     title="You are owed"
                     icon={<TrendingUp className="h-4 w-4 text-gain" />}
                     amount={dashboardData.total_owed / 100}
                     type="gain"
-                    description=""
+                    description="From 5 friends"
+                    isLoading={isFetchingDashboardData}
                 />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                <Card className="col-span-4 bg-surface border-border text-white">
+                <Card className="col-span-4 bg-card border-border text-card-foreground">
                     <CardHeader>
                         <CardTitle>Recent Activity</CardTitle>
                     </CardHeader>
@@ -66,7 +72,7 @@ export default function DashboardPage() {
                         <p className="text-sm text-muted-foreground">No recent activity.</p>
                     </CardContent>
                 </Card>
-                <Card className="col-span-3 bg-surface border-border text-white">
+                <Card className="col-span-3 bg-card border-border text-card-foreground">
                     <CardHeader>
                         <CardTitle>Quick Add</CardTitle>
                     </CardHeader>
@@ -80,12 +86,6 @@ export default function DashboardPage() {
     )
 }
 
-// Mock data for initial implementation since backend aggregations are not ready
-const summary = {
-    totalBalance: 1250.00,
-    youOwe: 450.00,
-    owedToYou: 1700.00,
-}
 
 const DashboardCard = memo(function DashboardCard({
     title,
@@ -93,7 +93,8 @@ const DashboardCard = memo(function DashboardCard({
     amount,
     type,
     description,
-    showSign = false
+    showSign = false,
+    isLoading
 }: {
     title: string,
     icon: React.ReactNode,
@@ -101,21 +102,34 @@ const DashboardCard = memo(function DashboardCard({
     type: "gain" | "loss",
     description: string,
     showSign?: boolean
+    isLoading: boolean
 }) {
     return (
-        <Card className="bg-surface border-border text-white">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{title}</CardTitle>
-                {icon}
-            </CardHeader>
-            <CardContent>
-                <div className={`text-2xl font-bold ${type === "gain" ? "text-gain" : "text-loss"}`}>
-                    {showSign ? (amount >= 0 ? "+" : "-") : ""}₹{Math.abs(amount).toFixed(2)}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                    {description}
-                </p>
-            </CardContent>
-        </Card>
+        isLoading ? (
+            <Card className="bg-card border-border text-card-foreground">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">{title}</CardTitle>
+                    {icon}
+                </CardHeader>
+                <CardContent>
+                    <p className="animate-pulse bg-gray-700 h-6 w-32 rounded"></p>
+                </CardContent>
+            </Card>
+        ) : (
+            <Card className="bg-card border-border text-card-foreground">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">{title}</CardTitle>
+                    {icon}
+                </CardHeader>
+                <CardContent>
+                    <div className={`text-2xl font-bold ${type === "gain" ? "text-gain" : "text-loss"}`}>
+                        {showSign ? (amount >= 0 ? "+" : "-") : ""}₹{Math.abs(amount).toFixed(2)}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                        {description}
+                    </p>
+                </CardContent>
+            </Card>
+        )
     )
 })

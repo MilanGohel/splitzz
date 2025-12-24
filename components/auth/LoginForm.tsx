@@ -17,7 +17,7 @@ export function LoginForm() {
         const data = await authClient.signIn.social({
             provider: "google"
         });
-        if(data.error){
+        if (data.error) {
             console.error("Login failed:", data.error);
             router.push("/sign-in")
         }
@@ -28,7 +28,7 @@ export function LoginForm() {
             <CardContent className="pt-6">
                 <Button
                     variant="outline"
-                    className="w-full dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-800 dark:border-neutral-700 cursor-pointer"
+                    className="w-full cursor-pointer"
                     onClick={onLoginWithGoogle}
                 >
                     <FaGoogle />
