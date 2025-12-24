@@ -211,10 +211,15 @@ export async function getNetBalances(groupId: number) {
   }));
 }
 
-export async function insertActivity(userId: string, groupId: string, type: string) {
-  await db.insert(activity).values({
+export async function insertActivity(userId: string, groupId: string, type: string, metadata: any) {
+  const groupIdInt = Number(groupId);
+  type ActivityInsertType = typeof activity.$inferInsert;
+
+  const newActivity: ActivityInsertType = {
     userId,
-    groupId,
+    groupId: groupIdInt,
     type,
-  });
+    metadata,
+  }
+  return await db.insert(activity).values(newActivity).returning();
 }

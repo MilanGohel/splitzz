@@ -157,6 +157,7 @@ export const idempotencyKey = pgTable("idempotency_keys", {
     .references(() => user.id, { onDelete: "cascade" }),
   endpoint: text("endpoint").notNull(),
   responseBody: jsonb("response_body").notNull(),
+  responseStatus: integer("response_status").notNull(),
   createdAt: timestamp("created_at").defaultNow()
 });
 
@@ -248,7 +249,7 @@ export const expenseShareRelations = relations(expenseShare, ({ one }) => ({
 export const activity = pgTable("activities", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade", onUpdate: "cascade" }),
-  groupId: text("group_id").notNull().references(() => group.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  groupId: integer("group_id").notNull().references(() => group.id, { onDelete: "cascade", onUpdate: "cascade" }),
   type: text("type").notNull(),
   metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").defaultNow(),

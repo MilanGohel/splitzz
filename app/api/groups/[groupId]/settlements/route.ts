@@ -56,11 +56,34 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ groupId: string }> }
 ) {
-  try {
-    const { groupId } = await params;
-    const groupIdInt = parseInt(groupId);
-    const idempotencyKeyHeader = request.headers.get("Idempotency-Key");
+  const { groupId } = await params;
+  const groupIdInt = parseInt(groupId);
+  const idempotencyKeyHeader = request.headers.get("Idempotency-Key");
 
+  try {
+    if (idempotencyKeyHeader) {
+      const existingKey = await db.query.idempotencyKey.findFirst({
+        where: eq(idempotencyKey.key, idempotencyKeyHeader),
+      });
+
+      if (existingKey) {
+        if (existingKey.responseBody === "PENDING") {
+          return Response.json(
+            { error: "Request is currently being processed" },
+            { status: 409 }
+          );
+        }
+        return Response.json(existingKey.responseBody, {
+          status: existingKey.responseStatus,
+        });
+      }
+    }
+
+    if (!idempotencyKeyHeader) {
+      return Response.json({
+        error: "Idempotency key not found"
+      }, { status: 400 })
+    }
     const session = await auth.api.getSession({
       headers: await headers()
     })
@@ -106,20 +129,13 @@ export async function POST(
 
     const result = await db.transaction(async (tx) => {
       if (idempotencyKeyHeader) {
-        const [newKey] = await tx
-          .insert(idempotencyKey)
-          .values({
-            key: idempotencyKeyHeader,
-            userId: fromUserId,
-            endpoint: request.url,
-            responseBody: "PENDING",
-          })
-          .onConflictDoNothing()
-          .returning();
-
-        if (!newKey) {
-          throw new Error("IDEMPOTENCY_CONFLICT");
-        }
+        await tx.insert(idempotencyKey).values({
+          key: idempotencyKeyHeader,
+          userId: session.user.id,
+          endpoint: request.url,
+          responseBody: "PENDING",
+          responseStatus: 202,
+        });
       }
 
       const [newSettlement] = await tx
@@ -132,17 +148,38 @@ export async function POST(
         })
         .returning();
 
+      if (idempotencyKeyHeader) {
+        await tx
+          .update(idempotencyKey)
+          .set({
+            responseBody: { insertedSettlement: newSettlement },
+            responseStatus: 201,
+          })
+          .where(eq(idempotencyKey.key, idempotencyKeyHeader));
+      }
+
       return newSettlement;
     });
 
     return Response.json({ insertedSettlement: result }, { status: 201 });
 
   } catch (error: unknown) {
-    if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT") {
-      return Response.json(
-        { error: "This request has already been processed." },
-        { status: 409 }
-      );
+    // Postgres unique constraint violation code
+    if ((error as any).code === "23505" && idempotencyKeyHeader) {
+      const existingKey = await db.query.idempotencyKey.findFirst({
+        where: eq(idempotencyKey.key, idempotencyKeyHeader),
+      });
+      if (existingKey) {
+        if (existingKey.responseBody === "PENDING") {
+          return Response.json(
+            { error: "Request is currently being processed" },
+            { status: 409 }
+          );
+        }
+        return Response.json(existingKey.responseBody, {
+          status: existingKey.responseStatus,
+        });
+      }
     }
 
     console.error("Error while creating settlement: ", error);

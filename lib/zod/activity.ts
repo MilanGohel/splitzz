@@ -1,5 +1,5 @@
 
-export const ACTION_TYPES = {
+export const ACTIVITY_TYPES = {
     EXPENSE_CREATE: "EXPENSE_CREATE",
     EXPENSE_UPDATE: "EXPENSE_UPDATE",
     EXPENSE_DELETE: "EXPENSE_DELETE",
@@ -8,4 +8,4 @@ export const ACTION_TYPES = {
     GROUP_LEAVE: "GROUP_LEAVE",
 } as const;
 
-export type ActionType = keyof typeof ACTION_TYPES;
+export type ActivityType = keyof typeof ACTIVITY_TYPES;

@@ -4,6 +4,7 @@ import {
   expenseShare,
   group,
   groupMember,
+  activity,
   idempotencyKey,
 } from "@/db/schema";
 import { expenseInsertSchema } from "@/lib/zod/expense";
@@ -12,6 +13,7 @@ import z from "zod";
 import { isGroupMember } from "@/lib/helpers/checks";
 import { auth } from "@/utils/auth";
 import { headers } from "next/headers";
+import { ACTIVITY_TYPES } from "@/lib/zod/activity";
 
 export async function GET(
   request: Request,
@@ -76,11 +78,36 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ groupId: string }> }
 ) {
-  try {
-    const { groupId } = await params;
-    const groupIdInt = parseInt(groupId);
+  const { groupId } = await params;
+  const groupIdInt = parseInt(groupId);
+  const idempotencyKeyHeader = request.headers.get("Idempotency-Key");
 
-    const idempotencyKeyHeader = request.headers.get("Idempotency-Key");
+  try {
+    if (idempotencyKeyHeader) {
+      const existingKey = await db.query.idempotencyKey.findFirst({
+        where: eq(idempotencyKey.key, idempotencyKeyHeader),
+      });
+
+      if (existingKey) {
+        if (existingKey.responseBody === "PENDING") {
+          return Response.json(
+            { error: "Request is currently being processed" },
+            { status: 409 }
+          );
+        }
+        return Response.json(existingKey.responseBody, {
+          status: existingKey.responseStatus,
+        });
+      }
+    }
+    if (!idempotencyKeyHeader) {
+      return Response.json(
+        {
+          error: "Idempotency key is required",
+        },
+        { status: 400 }
+      );
+    }
     const body = await request.json();
 
     const validatedData = await expenseInsertSchema.safeParseAsync(body);
@@ -156,20 +183,13 @@ export async function POST(
 
     const result = await db.transaction(async (tx) => {
       if (idempotencyKeyHeader) {
-        const [newKey] = await tx
-          .insert(idempotencyKey)
-          .values({
-            key: idempotencyKeyHeader,
-            endpoint: request.url,
-            responseBody: "PENDING",
-            userId: paidBy,
-          })
-          .onConflictDoNothing()
-          .returning();
-
-        if (!newKey) {
-          throw new Error("IDEMPOTENCY_CONFLICT");
-        }
+        await tx.insert(idempotencyKey).values({
+          key: idempotencyKeyHeader,
+          endpoint: request.url,
+          responseBody: "PENDING",
+          responseStatus: 202,
+          userId: paidBy,
+        });
       }
 
       const [insertedExpense] = await tx
@@ -198,16 +218,46 @@ export async function POST(
         },
       });
 
+      if (idempotencyKeyHeader) {
+        await tx
+          .update(idempotencyKey)
+          .set({
+            responseBody: { expense: expenseWithRelations },
+            responseStatus: 201,
+          })
+          .where(eq(idempotencyKey.key, idempotencyKeyHeader));
+      }
+
+      await tx.insert(activity).values({
+        type: ACTIVITY_TYPES.EXPENSE_CREATE,
+        groupId: groupIdInt,
+        userId: paidBy,
+        metadata: {
+          expenseId: insertedExpense.id,
+          expenseDescription: description,
+        },
+      })
       return expenseWithRelations;
     });
 
     return Response.json({ expense: result }, { status: 201 });
   } catch (error: any) {
-    if (error.message === "IDEMPOTENCY_CONFLICT") {
-      return Response.json(
-        { error: "This request has already been processed." },
-        { status: 409 }
-      );
+    // Postgres unique constraint violation code
+    if ((error as any).code === "23505" && idempotencyKeyHeader) {
+      const existingKey = await db.query.idempotencyKey.findFirst({
+        where: eq(idempotencyKey.key, idempotencyKeyHeader),
+      });
+      if (existingKey) {
+        if (existingKey.responseBody === "PENDING") {
+          return Response.json(
+            { error: "Request is currently being processed" },
+            { status: 409 }
+          );
+        }
+        return Response.json(existingKey.responseBody, {
+          status: existingKey.responseStatus,
+        });
+      }
     }
     console.error("Error while creating expense: ", error);
     return Response.json({ error: "Internal server error." }, { status: 500 });

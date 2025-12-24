@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import axios from "axios";
 import { toast } from "sonner";
+import { v4 as uuidv4 } from "uuid";
 
 /* =======================
    Types
@@ -74,9 +75,12 @@ export const useSettlementStore = create<SettlementState>((set, get) => ({
     settleDebt: async (groupId, settlementData) => {
         set({ isSettlingDebt: true, error: null });
         try {
-            await api.post(`/api/groups/${groupId}/settlements`, settlementData);
+            await api.post(`/api/groups/${groupId}/settlements`, settlementData, {
+                headers: {
+                    "Idempotency-Key": uuidv4(),
+                },
+            });
             toast.success("Settlement recorded successfully");
-            // Refresh suggested settlements after a successful settlement
             await get().fetchSuggestedSettlements(groupId);
         } catch (error: any) {
             console.error("Failed to record settlement:", error);

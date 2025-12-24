@@ -1,5 +1,6 @@
-import { db, groupMember } from "@/db/schema";
+import { activity, db, groupMember } from "@/db/schema";
 import { isGroupMember } from "@/lib/helpers/checks";
+import { ACTIVITY_TYPES } from "@/lib/zod/activity";
 import { auth } from "@/utils/auth";
 import { headers } from "next/headers";
 
@@ -133,6 +134,17 @@ export async function POST(
         userId,
       })
       .returning();
+
+    await db.insert(activity).values({
+      type: ACTIVITY_TYPES.GROUP_JOIN,
+      groupId: groupIdInt,
+      userId: session.user.id,
+      metadata: {
+        userId,
+        name: userFound?.name,
+        email: userFound?.email,
+      },
+    });
 
     return Response.json(
       {

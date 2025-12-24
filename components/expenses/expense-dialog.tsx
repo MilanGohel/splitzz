@@ -149,6 +149,7 @@ export function ExpenseDialog({
   /* ---------------- submit ---------------- */
 
   const onSubmit = async (data: ExpenseInsertSchema) => {
+    debugger;
     if (mode === "add") {
       await createExpense(groupId, data);
     } else {

@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import axios from "axios";
 import { toast } from "sonner";
+import { v4 as uuidv4 } from "uuid";
+
 
 /* =======================
    Types
@@ -296,12 +298,15 @@ export const useGroupStore = create<GroupState>((set, get) => ({
       members: { ...s.members, [groupId]: members },
     })),
 
-  /* ---------- expenses ---------- */
 
   createExpense: async (groupId, payload) => {
     set({ isCreatingExpense: true });
     try {
-      const { data } = await api.post(`/api/groups/${groupId}/expenses`, payload);
+      const { data } = await api.post(`/api/groups/${groupId}/expenses`, payload, {
+        headers: {
+          "Idempotency-Key": uuidv4(),
+        },
+      });
 
       const expense: Expense = data.expense;
 

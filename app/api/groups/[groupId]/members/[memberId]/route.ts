@@ -1,6 +1,7 @@
-import { db, groupMember, user } from "@/db/schema";
+import { activity, db, groupMember, user } from "@/db/schema";
 import { isGroupMember } from "@/lib/helpers/checks";
 import { getUserDebts } from "@/lib/helpers/queries";
+import { ACTIVITY_TYPES } from "@/lib/zod/activity";
 import { auth } from "@/utils/auth";
 import { and, eq, sql } from "drizzle-orm";
 import { headers } from "next/headers";
@@ -19,6 +20,9 @@ export async function DELETE(
     if (!session?.user.id) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const userFound = await db.query.user.findFirst({
+      where: eq(user.id, memberId),
+    });
 
     if (!await isGroupMember(session.user.id, groupIdInt)) {
       return Response.json({ error: "You are not a member of this group. You can't remove members." }, { status: 403 });
@@ -31,7 +35,6 @@ export async function DELETE(
     if (!await isGroupMember(memberId, groupIdInt)) {
       return Response.json({ error: "Member not found in this group" }, { status: 404 });
     }
-
     // 1. Check for active debts
     const userDebts = await getUserDebts(memberId, groupIdInt);
 
@@ -52,12 +55,24 @@ export async function DELETE(
       )
       .returning();
 
+
     if (result.length === 0) {
       return Response.json(
         { error: "Member not found in this group" },
         { status: 404 }
       );
     }
+
+    await db.insert(activity).values({
+      type: ACTIVITY_TYPES.GROUP_LEAVE,
+      groupId: groupIdInt,
+      userId: memberId,
+      metadata: {
+        userId: userFound?.id,
+        name: userFound?.name,
+        email: userFound?.email,
+      },
+    });
 
     return Response.json(
       {

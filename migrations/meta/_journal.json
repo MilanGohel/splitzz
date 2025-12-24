@@ -29,6 +29,13 @@
       "when": 1766123737517,
       "tag": "0003_red_morlun",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1766580318417,
+      "tag": "0004_legal_phantom_reporter",
+      "breakpoints": true
     }
   ]
 }
