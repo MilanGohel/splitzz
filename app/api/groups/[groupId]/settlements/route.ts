@@ -1,5 +1,6 @@
-import { db, group, idempotencyKey, settlement } from "@/db/schema";
+import { activity, db, group, idempotencyKey, settlement } from "@/db/schema";
 import { isGroupMember } from "@/lib/helpers/checks";
+import { ACTIVITY_TYPES } from "@/lib/zod/activity";
 import { settlementInsertSchema } from "@/lib/zod/settlement";
 import { auth } from "@/utils/auth";
 import { eq } from "drizzle-orm";
@@ -158,6 +159,14 @@ export async function POST(
           .where(eq(idempotencyKey.key, idempotencyKeyHeader));
       }
 
+      await tx.insert(activity).values({
+        groupId: groupIdInt,
+        userId: session.user.id,
+        type: ACTIVITY_TYPES.SETTLEMENT_CREATE,
+        metadata: {
+          settlement: newSettlement,
+        }
+      })
       return newSettlement;
     });
 

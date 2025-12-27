@@ -235,6 +235,8 @@ export async function POST(
         metadata: {
           expenseId: insertedExpense.id,
           expenseDescription: description,
+          amount: totalAmount,
+          currency: "INR",
         },
       })
       return expenseWithRelations;

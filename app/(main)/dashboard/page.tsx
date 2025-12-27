@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { TrendingUp, TrendingDown, IndianRupee } from "lucide-react"
 import { memo, useEffect, useState } from "react"
 import { toast } from "sonner";
+import { RecentActivityCard } from "@/components/dashboard/recent-activity-card";
+import { QuickAddCard } from "@/components/dashboard/quick-add-card";
 
 export default function DashboardPage() {
     const [isFetchingDashboardData, setIsFetchingDashboardData] = useState(false);
@@ -58,29 +60,14 @@ export default function DashboardPage() {
                     icon={<TrendingUp className="h-4 w-4 text-gain" />}
                     amount={dashboardData.total_owed / 100}
                     type="gain"
-                    description="From 5 friends"
+                    description={`From ${dashboardData.no_of_people_owed} friends`}
                     isLoading={isFetchingDashboardData}
                 />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                <Card className="col-span-4 bg-card border-border text-card-foreground">
-                    <CardHeader>
-                        <CardTitle>Recent Activity</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-sm text-muted-foreground">No recent activity.</p>
-                    </CardContent>
-                </Card>
-                <Card className="col-span-3 bg-card border-border text-card-foreground">
-                    <CardHeader>
-                        <CardTitle>Quick Add</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {/* Future: Quick Expense Add */}
-                        <p className="text-sm text-muted-foreground">Select a group to add an expense.</p>
-                    </CardContent>
-                </Card>
+                <RecentActivityCard />
+                <QuickAddCard />
             </div>
         </div>
     )

@@ -1,6 +1,7 @@
 
 import { create } from "zustand";
 import { authClient } from "@/utils/auth-client";
+import { toast } from "sonner";
 
 export type LoggedInUser = {
   id: string;
@@ -14,6 +15,7 @@ interface AuthState {
 
   fetchUser: () => Promise<void>;
   clearUser: () => void;
+  handleLogOut: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -42,4 +44,13 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   clearUser: () => set({ user: null, isAuthChecking: false }),
+  handleLogOut: async () => {
+    try {
+      set({ isAuthChecking: true });
+      await authClient.signOut();
+      set({ user: null, isAuthChecking: false });
+    } catch (error) {
+      toast.error("Error logging out");
+    }
+  }
 }));

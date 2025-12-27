@@ -1,4 +1,5 @@
-import { db, expense, expenseShare, group, groupMember } from "@/db/schema";
+import { activity, db, expense, expenseShare, group, groupMember } from "@/db/schema";
+import { ACTIVITY_TYPES } from "@/lib/zod/activity";
 import { expenseInsertSchema } from "@/lib/zod/expense";
 import { auth } from "@/utils/auth"; // Check path
 import { eq, and } from "drizzle-orm";
@@ -260,6 +261,21 @@ export async function PATCH(
           shares: true
         }
       })
+
+      await tx.insert(activity).values(
+        {
+          groupId: existingExpense.groupId,
+          userId: session.user.id,
+          type: ACTIVITY_TYPES.EXPENSE_UPDATE,
+          metadata: {
+            expenseId: updatedExpense.id,
+            expense: updatedExpense,
+            oldExpense: existingExpense,
+            shares: sharesWithCents,
+          }
+        }
+      );
+
       return resultData;
     });
 

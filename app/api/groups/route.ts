@@ -1,4 +1,5 @@
-import { db, group, groupMember, user } from "@/db/schema";
+import { activity, db, group, groupMember, user } from "@/db/schema";
+import { ACTIVITY_TYPES } from "@/lib/zod/activity";
 import { groupInsertSchema } from "@/lib/zod/group";
 import { auth } from "@/utils/auth";
 import { eq, inArray, desc } from "drizzle-orm";
@@ -97,6 +98,15 @@ export async function POST(request: Request) {
         userId: userData.id,
         groupId: insertedGroup.id,
       });
+
+      await tx.insert(activity).values({
+        groupId: insertedGroup.id,
+        userId: userData.id,
+        type: ACTIVITY_TYPES.GROUP_CREATE,
+        metadata: {
+          group: insertedGroup,
+        }
+      })
 
       return insertedGroup;
     });

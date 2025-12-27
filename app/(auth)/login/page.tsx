@@ -12,7 +12,6 @@ import { authClient } from "@/utils/auth-client";
 import { FcGoogle } from "react-icons/fc";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { useGroupStore } from "@/lib/stores/group-store";
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth-store";

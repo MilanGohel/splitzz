@@ -41,11 +41,8 @@ import {
   DropdownMenuSubContent,
   DropdownMenuPortal,
 } from "@/components/ui/dropdown-menu";
-import { authClient } from "@/utils/auth-client"; // We'll implement strict auth hook usage later
-import { useEffect } from "react";
 
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { title } from "process";
 import { useTheme } from "next-themes";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -53,7 +50,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { setTheme } = useTheme();
 
   const loggedInUser = useAuthStore((state) => state.user);
-
+  const { handleLogOut } = useAuthStore();
   const router = useRouter();
   const user = {
     name: loggedInUser?.name || "User",
@@ -77,8 +74,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       icon: Activity,
     },
   ];
-  const handleLogOut = async () => {
-    await authClient.signOut();
+  const onLogOut = async () => {
+    await handleLogOut();
     router.push("/login");
   };
 
@@ -156,7 +153,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 align="end"
                 sideOffset={4}
               >
-                <DropdownMenuItem onClick={() => handleLogOut()}>
+                <DropdownMenuItem onClick={() => onLogOut()}>
                   <LogOut className="mr-2 size-4" />
                   Log out
                 </DropdownMenuItem>

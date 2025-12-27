@@ -1,5 +1,6 @@
-import { db, group } from "@/db/schema";
+import { activity, db, group } from "@/db/schema";
 import { isGroupMember } from "@/lib/helpers/checks";
+import { ACTIVITY_TYPES } from "@/lib/zod/activity";
 import { auth } from "@/utils/auth";
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
@@ -34,6 +35,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ gr
         .update(group)
         .set({ simplifyDebts: groupData.simplifyDebts })
         .where(eq(group.id, groupIdInt)).returning();
+
+    await db.insert(activity).values({
+        groupId: groupIdInt,
+        userId: session.user.id,
+        type: ACTIVITY_TYPES.SIMPLIFY_DEBTS,
+        metadata: {
+            group: updatedGroup,
+        }
+    })
 
     return Response.json({ updatedGroup });
 }

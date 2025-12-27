@@ -7,7 +7,6 @@ import { relations, sql } from "drizzle-orm";
 
 config({ path: ".env" });
 
-
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
