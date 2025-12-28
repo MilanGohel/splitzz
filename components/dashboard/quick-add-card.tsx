@@ -18,13 +18,11 @@ export function QuickAddCard() {
 
     const handleGroupSelect = async (groupId: string) => {
         setSelectedGroupId(groupId);
-        // Pre-fetch group members so the dialog has them
-        // We catch error silently as fetchGroupData might toast on error
         await fetchGroupData(Number(groupId)).catch(() => { });
     };
 
     return (
-        <Card className="col-span-3 bg-card border-border text-card-foreground h-fit">
+        <Card className="col-span-4 lg:col-span-3 bg-card border-border text-card-foreground h-fit">
             <CardHeader>
                 <CardTitle>Quick Add Expense</CardTitle>
             </CardHeader>

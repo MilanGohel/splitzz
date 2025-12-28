@@ -8,7 +8,6 @@ export function ActivityList() {
     const observerTarget = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        // Initial fetch if empty
         if (activities.items.length === 0) {
             fetchActivities();
         }
