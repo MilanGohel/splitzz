@@ -49,6 +49,8 @@ export const userActivityStore = create<ActivityState>((set, get) => ({
 
     fetchActivities: async () => {
         const state = get();
+        if (state.isFetchingActivities) return;
+
         set({ isFetchingActivities: true })
         try {
             const response = await api.get(`/api/activities`, {
@@ -59,15 +61,21 @@ export const userActivityStore = create<ActivityState>((set, get) => ({
             });
             const { data } = response;
             if (data.activities) {
-                set((s) => ({
-                    activities: {
-                        ...s.activities,
-                        items: [...s.activities.items, ...data.activities],
-                        hasMore: s.activities.items.length + data.activities.length < data.pagination.total,
-                        offset: s.activities.offset + data.activities.length,
-                        total: data.pagination.total,
+                set((s) => {
+                    const newItems = data.activities.filter((newItem: Activity) =>
+                        !s.activities.items.some(existingItem => existingItem.id === newItem.id)
+                    );
+
+                    return {
+                        activities: {
+                            ...s.activities,
+                            items: [...s.activities.items, ...newItems],
+                            hasMore: s.activities.items.length + data.activities.length < data.pagination.total,
+                            offset: s.activities.offset + data.activities.length,
+                            total: data.pagination.total,
+                        }
                     }
-                }))
+                })
             }
         } catch (error) {
             toast.error("Failed to load the Activities")

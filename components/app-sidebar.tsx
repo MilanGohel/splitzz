@@ -107,8 +107,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupLabel>Platform</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navMain.map((item) => (
-                <SidebarMenuItem key={item.title}>
+              {navMain.map((item, index) => (
+                <SidebarMenuItem key={index}>
                   <SidebarMenuButton
                     asChild
                     isActive={pathname === item.url}
