@@ -9,6 +9,7 @@ import { Receipt, ArrowRightLeft, Loader2 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useGroupStore } from "@/lib/stores/group-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useSettlementStore } from "@/lib/stores/settlement-store";
 import { Button } from "@/components/ui/button";
 import GroupBalancesPage from "@/components/groups/group-balances-page";
 import { SuggestedSettlements } from "@/components/groups/suggested-settlements";
@@ -37,13 +38,15 @@ export default function GroupPage({
     fetchGroupData(groupIdInt);
   }, [groupIdInt]);
 
+  const { fetchSuggestedSettlements } = useSettlementStore();
+
   const handleSimplifyDebtsChange = async () => {
 
     const group = groups.find((g) => g.id === groupIdInt);
     if (!group?.id) return;
 
     await toggleSimplifiyDebts(group.id);
-
+    await fetchSuggestedSettlements(group.id);
   };
   return (
     <div className="flex flex-col gap-6">

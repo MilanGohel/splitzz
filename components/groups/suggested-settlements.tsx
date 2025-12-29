@@ -27,7 +27,7 @@ export function SuggestedSettlements({ groupId }: SuggestedSettlementsProps) {
         fetchSuggestedSettlements(groupId);
     }, [groupId, fetchSuggestedSettlements]);
 
-    if (isFetchingSettlements && settlements.length === 0) {
+    if (isFetchingSettlements) {
         return (
             <div className="flex h-64 w-full items-center justify-center">
                 <Loader2 className="h-6 w-6 animate-spin" />
