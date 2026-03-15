@@ -1,8 +1,8 @@
-import { activity, db, group, groupMember, user } from "@/db/schema";
+import { activity, db, expense, group, groupMember, user } from "@/db/schema";
 import { ACTIVITY_TYPES } from "@/lib/zod/activity";
 import { groupInsertSchema } from "@/lib/zod/group";
 import { auth } from "@/utils/auth";
-import { eq, inArray, desc } from "drizzle-orm";
+import { eq, inArray, desc, sql, getTableColumns } from "drizzle-orm";
 import { headers } from "next/headers";
 import { z } from "zod";
 
@@ -40,9 +40,14 @@ export async function GET(request: Request) {
     }
 
     const groups = await db
-      .select()
+      .select({
+        ...getTableColumns(group),
+        totalSpent: sql<number>`coalesce(sum(${expense.totalAmount}), 0)`.mapWith(Number)
+      })
       .from(group)
+      .leftJoin(expense, eq(group.id, expense.groupId))
       .where(inArray(group.id, groupIds))
+      .groupBy(group.id)
       .orderBy(desc(group.createdAt));
 
     return Response.json({ groups });

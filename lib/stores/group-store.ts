@@ -14,6 +14,7 @@ export type Group = {
   description: string | null;
   createdAt: string;
   simplifyDebts: boolean;
+  totalSpent?: number;
 };
 
 export type Member = {

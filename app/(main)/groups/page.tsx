@@ -53,10 +53,16 @@ export default function GroupsPage() {
     )
 }
 
+const formatMoney = (cents: number) =>
+    new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+    }).format(Math.abs(cents) / 100);
+
 const GroupCard = memo(function GroupCard({ group }: { group: any }) {
     return (
-        <Link href={`/groups/${group.id}`} className="block transition-transform hover:-translate-y-1">
-            <Card className="bg-card border-border text-card-foreground h-full hover:border-brand/50 transition-colors">
+        <Link href={`/groups/${group.id}`} className="block transition-transform hover:-translate-y-1 h-full flex">
+            <Card className="bg-card border-border text-card-foreground w-full flex flex-col hover:border-brand/50 transition-colors">
                 <CardHeader>
                     <CardTitle className="flex items-center justify-between">
                         {group.name}
@@ -66,10 +72,15 @@ const GroupCard = memo(function GroupCard({ group }: { group: any }) {
                         {group.description || "No description"}
                     </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="mt-auto pt-4 flex items-center justify-between border-t border-border/40">
                     <p className="text-xs text-muted-foreground">
-                        Created on {new Date(group.createdAt).toLocaleDateString()}
+                        {new Date(group.createdAt).toLocaleDateString()}
                     </p>
+                    {group.totalSpent !== undefined && (
+                        <p className="text-sm font-medium text-foreground">
+                            Spent: {formatMoney(group.totalSpent)}
+                        </p>
+                    )}
                 </CardContent>
             </Card>
         </Link>
