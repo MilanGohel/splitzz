@@ -472,7 +472,7 @@ export function ExpenseDialog({
     >
       <DialogTrigger asChild>{trigger}</DialogTrigger>
 
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <div className="flex items-center justify-between gap-3 pr-6">
             <DialogTitle>

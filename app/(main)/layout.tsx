@@ -7,7 +7,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <main className="w-full">
+      <main className="w-full min-w-0 flex-1 overflow-x-hidden">
         <div className="flex items-center gap-2 p-4">
             <SidebarTrigger />
             <h1 className="text-xl font-bold text-brand">Splitzz</h1>

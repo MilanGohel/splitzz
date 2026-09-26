@@ -98,7 +98,7 @@ export function SettlementDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[480px] max-h-[90vh] overflow-y-auto bg-card border-border text-card-foreground">
+      <DialogContent className="sm:max-w-[480px] max-h-[90vh] overflow-y-auto overflow-x-hidden bg-card border-border text-card-foreground">
         <DialogHeader>
           <DialogTitle>Settle Up</DialogTitle>
           <DialogDescription>
@@ -108,7 +108,7 @@ export function SettlementDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 py-2 min-w-0">
           {/* Amount Input */}
           <div className="space-y-1.5">
             <Label
@@ -124,25 +124,25 @@ export function SettlementDialog({
               min="0.01"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="bg-background border-input font-medium text-base"
+              className="bg-background border-input font-medium text-base w-full min-w-0"
               placeholder="0.00"
             />
           </div>
 
           {/* UPI Payment Deep Link & QR Section (for PAYABLE) */}
           {isPayable && (
-            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3.5">
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 sm:p-4 space-y-3.5 max-w-full overflow-hidden min-w-0">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Smartphone className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-semibold">Pay via UPI Deep Link</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <Smartphone className="h-4 w-4 text-primary shrink-0" />
+                  <span className="text-sm font-semibold truncate">Pay via UPI Deep Link</span>
                 </div>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowQr(!showQr)}
-                  className="h-7 px-2 text-xs gap-1 text-primary hover:text-primary"
+                  className="h-7 px-2 text-xs gap-1 text-primary hover:text-primary shrink-0"
                 >
                   <QrCode className="h-3.5 w-3.5" />
                   <span>{showQr ? "Hide QR" : "Show QR"}</span>
@@ -158,27 +158,27 @@ export function SettlementDialog({
                   id="upiId"
                   value={upiId}
                   onChange={(e) => setUpiId(e.target.value)}
-                  placeholder="friend@upi (e.g. mobile@okaxis, name@paytm)"
-                  className="bg-background border-input text-xs h-8"
+                  placeholder="friend@upi (e.g. mobile@okaxis)"
+                  className="bg-background border-input text-xs h-8 w-full min-w-0"
                 />
               </div>
 
               {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 w-full min-w-0">
                 <Button
                   type="button"
                   onClick={handlePayViaUpi}
-                  className="flex-1 gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 h-9"
+                  className="flex-1 min-w-0 gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 h-9"
                 >
-                  <Smartphone className="h-4 w-4" />
-                  <span>Pay via UPI App</span>
-                  <ExternalLink className="h-3.5 w-3.5 ml-0.5 opacity-70" />
+                  <Smartphone className="h-4 w-4 shrink-0" />
+                  <span className="truncate">Pay via UPI App</span>
+                  <ExternalLink className="h-3.5 w-3.5 ml-0.5 opacity-70 shrink-0" />
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   onClick={handleCopyUpiLink}
-                  className="sm:w-auto gap-1.5 h-9 text-xs"
+                  className="sm:w-auto shrink-0 gap-1.5 h-9 text-xs"
                 >
                   {copiedLink ? (
                     <>
@@ -196,8 +196,8 @@ export function SettlementDialog({
 
               {/* QR Preview & formatted URI for Desktop / In-person */}
               {showQr && (
-                <div className="flex flex-col items-center justify-center p-3 rounded-lg bg-background/90 border border-border/60 text-center gap-2">
-                  <div className="p-2 bg-white rounded-lg shadow-xs">
+                <div className="flex flex-col items-center justify-center p-3 rounded-lg bg-background/90 border border-border/60 text-center gap-2 max-w-full overflow-hidden min-w-0">
+                  <div className="p-2 bg-white rounded-lg shadow-xs shrink-0">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
@@ -215,12 +215,12 @@ export function SettlementDialog({
                       Google Pay, PhonePe, Paytm, CRED or BHIM
                     </p>
                   </div>
-                  <div className="w-full bg-muted/70 rounded px-2 py-1.5 flex items-center justify-between text-[11px] font-mono text-muted-foreground gap-2">
-                    <span className="truncate">{upiUrl}</span>
+                  <div className="w-full min-w-0 max-w-full bg-muted/70 rounded px-2.5 py-1.5 flex items-center justify-between text-[11px] font-mono text-muted-foreground gap-2 overflow-hidden">
+                    <span className="truncate min-w-0 flex-1 select-all">{upiUrl}</span>
                     <button
                       type="button"
                       onClick={handleCopyUpiLink}
-                      className="shrink-0 hover:text-foreground p-0.5"
+                      className="shrink-0 hover:text-foreground p-0.5 text-muted-foreground"
                       title="Copy URI"
                     >
                       <Copy className="h-3.5 w-3.5" />
