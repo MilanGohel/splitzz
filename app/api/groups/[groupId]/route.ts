@@ -1,5 +1,5 @@
-import { db, group } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { db, group, expense } from "@/db/schema";
+import { eq, getTableColumns, sql } from "drizzle-orm";
 import { isGroupMember } from "@/lib/helpers/checks";
 import { auth } from "@/utils/auth";
 import { headers } from "next/headers";
@@ -20,7 +20,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ grou
     }
 
     // Fetch group details from the database
-    const [groupData] = await db.select().from(group).where(eq(group.id, groupIdInt)).limit(1);
+    const [groupData] = await db
+        .select({
+            ...getTableColumns(group),
+            totalSpent: sql<number>`coalesce(sum(${expense.totalAmount}), 0)`.mapWith(Number)
+        })
+        .from(group)
+        .leftJoin(expense, eq(group.id, expense.groupId))
+        .where(eq(group.id, groupIdInt))
+        .groupBy(group.id)
+        .limit(1);
 
     if (!groupData) {
         return Response.json({ error: "Group not found" }, { status: 404 });

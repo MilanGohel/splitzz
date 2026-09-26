@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
-import { UserPlus } from "lucide-react"
+import { UserPlus, Copy, Check } from "lucide-react"
 import { useGroupStore } from "@/lib/stores/group-store"
 import { UserCombobox } from "@/components/common/ComboBox"
 
@@ -33,8 +33,15 @@ const addMemberSchema = z.object({
 
 type AddMemberSchema = z.infer<typeof addMemberSchema>
 
-export function AddMemberDialog({ groupId }: { groupId: number }) {
+export function AddMemberDialog({
+  groupId,
+  trigger,
+}: {
+  groupId: number
+  trigger?: React.ReactNode
+}) {
   const [open, setOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
   const { addMember, isAddingMember } = useGroupStore()
 
   const form = useForm<AddMemberSchema>({
@@ -55,18 +62,34 @@ export function AddMemberDialog({ groupId }: { groupId: number }) {
     }
   }
 
+  const handleCopyInviteLink = async () => {
+    try {
+      const inviteUrl = `${window.location.origin}/groups/${groupId}`
+      await navigator.clipboard.writeText(inviteUrl)
+      setCopied(true)
+      toast.success("Invite link copied to clipboard!")
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      toast.error("Failed to copy invite link")
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="icon" className="h-8 w-8 rounded-full">
-          <UserPlus className="h-4 w-4" />
-        </Button>
+        {trigger ? (
+          trigger
+        ) : (
+          <Button variant="outline" size="icon" className="h-8 w-8 rounded-full">
+            <UserPlus className="h-4 w-4" />
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
         <DialogHeader>
           <DialogTitle>Add Member</DialogTitle>
           <DialogDescription>
-            Invite a user to this group by email.
+            Invite a user to this group by email or share an invite link.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -102,6 +125,25 @@ export function AddMemberDialog({ groupId }: { groupId: number }) {
             </DialogFooter>
           </form>
         </Form>
+
+        <div className="relative my-2">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-border" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-card px-2 text-muted-foreground">Or share invite link</span>
+          </div>
+        </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full flex items-center justify-center gap-2"
+          onClick={handleCopyInviteLink}
+        >
+          {copied ? <Check className="h-4 w-4 text-gain" /> : <Copy className="h-4 w-4" />}
+          Copy Invite Link
+        </Button>
       </DialogContent>
     </Dialog>
   )

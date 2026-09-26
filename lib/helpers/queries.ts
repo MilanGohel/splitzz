@@ -83,8 +83,27 @@ export async function getUserDashboardData(userId: string, duration: DashboardDu
     total_spendings: number;
   }[];
 
+  const categorySpendings = await db.execute(sql`
+      SELECT 
+      COALESCE(ex.category, 'general') as category,
+      COALESCE(SUM(es.share_amount), 0) as total_amount,
+      COUNT(DISTINCT ex.id) as count
+      FROM expense_shares es
+      JOIN expenses ex ON ex.id = es.expense_id
+      WHERE es.user_id = ${userId}
+      AND es.created_at >= ${conditionalDate}
+      GROUP BY COALESCE(ex.category, 'general')
+      ORDER BY total_amount DESC
+  `);
+
   const row = rows[0] || { total_owed: 0, total_owes: 0 };
   const totalSpending = totalSpendingsVal[0]?.total_spendings || 0;
+
+  const categories = (categorySpendings.rows as any[]).map((r) => ({
+    category: String(r.category),
+    total_amount: Number(r.total_amount),
+    count: Number(r.count),
+  }));
 
   return {
     total_owed: Number(row.total_owed),
@@ -92,6 +111,7 @@ export async function getUserDashboardData(userId: string, duration: DashboardDu
     total_spendings: Number(totalSpending),
     no_of_people_owing: Number(row.no_of_people_owing),
     no_of_people_owed: Number(row.no_of_people_owed),
+    categories,
   };
 }
 

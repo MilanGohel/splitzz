@@ -11,9 +11,13 @@ export async function GET(request: Request) {
             return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
         const url = new URL(request.url);
-        const duration = url.searchParams.get("duration");
+        const durationParam = url.searchParams.get("duration") || "this_month";
+        const validDurations: DashboardDuration[] = ["this_month", "this_year", "all_time"];
+        const duration: DashboardDuration = validDurations.includes(durationParam as DashboardDuration)
+            ? (durationParam as DashboardDuration)
+            : "this_month";
 
-        const data = await getUserDashboardData(session.user.id, duration as DashboardDuration);
+        const data = await getUserDashboardData(session.user.id, duration);
 
         return Response.json({ data }, { status: 200 });
     } catch (error) {

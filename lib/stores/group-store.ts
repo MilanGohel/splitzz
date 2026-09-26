@@ -16,12 +16,14 @@ export type Group = {
   createdAt: string;
   simplifyDebts: boolean;
   totalSpent?: number;
+  ownerId?: string;
 };
 
 export type Member = {
   id: string;
   name: string;
   email: string;
+  image?: string | null;
 };
 
 export type Share = {
@@ -65,6 +67,7 @@ interface GroupState {
   isCreatingExpense: boolean;
   isUpdatingExpense: boolean;
   isAddingMember: boolean;
+  isRemovingMember: boolean;
   isFetchingBalances: boolean;
   isFetchingMoreExpenses: boolean;
 
@@ -109,6 +112,7 @@ interface GroupState {
   deleteExpense: (groupId: number, expenseId: number) => Promise<void>;
 
   addMember: (groupId: number, email: string) => Promise<void>;
+  removeMember: (groupId: number, memberId: string) => Promise<void>;
 }
 
 /* =======================
@@ -138,6 +142,7 @@ export const useGroupStore = create<GroupState>((set, get) => ({
   isCreatingExpense: false,
   isUpdatingExpense: false,
   isAddingMember: false,
+  isRemovingMember: false,
   isFetchingBalances: false,
   isFetchingMoreExpenses: false,
   /* ---------- groups ---------- */
@@ -417,6 +422,26 @@ export const useGroupStore = create<GroupState>((set, get) => ({
       throw err;
     } finally {
       set({ isAddingMember: false });
+    }
+  },
+  removeMember: async (groupId, memberId) => {
+    set({ isRemovingMember: true });
+    try {
+      const { data } = await api.delete(`/api/groups/${groupId}/members/${memberId}`);
+      set((s) => ({
+        members: {
+          ...s.members,
+          [groupId]: (s.members[groupId] ?? []).filter((m) => m.id !== memberId),
+        },
+      }));
+      toast.success(data?.message || "Member removed successfully");
+      await get().fetchBalances(groupId);
+    } catch (err: any) {
+      const msg = err?.response?.data?.error ?? "Failed to remove member";
+      toast.error(msg);
+      throw err;
+    } finally {
+      set({ isRemovingMember: false });
     }
   },
 }));

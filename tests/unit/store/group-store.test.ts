@@ -127,4 +127,25 @@ describe('useGroupStore - Reactive Synchronization & Expense Deletion', () => {
         expect(state.expenses[groupId].items[0].description).toBe('Updated Lunch');
         expect(mockInstance.get).toHaveBeenCalledWith('/api/groups/1/balances');
     });
+
+    it('removeMember calls DELETE endpoint, removes member from store, fetches balances and shows toast', async () => {
+        const groupId = 1;
+        const mockMember = { id: 'user-2', name: 'Bob', email: 'bob@example.com' };
+        useGroupStore.setState({
+            members: {
+                [groupId]: [mockMember],
+            },
+        });
+
+        mockInstance.delete.mockResolvedValueOnce({ data: { message: 'Member removed successfully' } });
+        mockInstance.get.mockResolvedValueOnce({ data: { balances: [] } });
+
+        await useGroupStore.getState().removeMember(groupId, 'user-2');
+
+        expect(mockInstance.delete).toHaveBeenCalledWith('/api/groups/1/members/user-2');
+        const state = useGroupStore.getState();
+        expect(state.members[groupId]).toHaveLength(0);
+        expect(mockInstance.get).toHaveBeenCalledWith('/api/groups/1/balances');
+        expect(toast.success).toHaveBeenCalledWith('Member removed successfully');
+    });
 });
