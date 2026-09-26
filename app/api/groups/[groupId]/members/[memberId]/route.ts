@@ -1,4 +1,4 @@
-import { activity, db, groupMember, user } from "@/db/schema";
+import { activity, db, group, groupMember, user } from "@/db/schema";
 import { isGroupMember } from "@/lib/helpers/checks";
 import { getUserDebts } from "@/lib/helpers/queries";
 import { ACTIVITY_TYPES } from "@/lib/zod/activity";
@@ -16,21 +16,36 @@ export async function DELETE(
 
     const session = await auth.api.getSession({
       headers: await headers()
-    })
-    if (!session?.user.id) {
+    });
+    if (!session?.user?.id) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const userFound = await db.query.user.findFirst({
-      where: eq(user.id, memberId),
+
+    const groupData = await db.query.group.findFirst({
+      where: eq(group.id, groupIdInt),
     });
+
+    if (!groupData) {
+      return Response.json({ error: "Group not found" }, { status: 404 });
+    }
 
     if (!await isGroupMember(session.user.id, groupIdInt)) {
       return Response.json({ error: "You are not a member of this group. You can't remove members." }, { status: 403 });
     }
 
-    if (session.user.id === memberId) {
-      return Response.json({ error: "You can't remove yourself." }, { status: 400 });
+    if (memberId === groupData.ownerId) {
+      return Response.json({ error: "The group owner cannot be removed from the group." }, { status: 400 });
     }
+
+    const isOwner = groupData.ownerId === session.user.id;
+    const isSelf = session.user.id === memberId;
+    if (!isOwner && !isSelf) {
+      return Response.json({ error: "Forbidden: Only the group owner or the member themselves can remove this member." }, { status: 403 });
+    }
+
+    const userFound = await db.query.user.findFirst({
+      where: eq(user.id, memberId),
+    });
 
     if (!await isGroupMember(memberId, groupIdInt)) {
       return Response.json({ error: "Member not found in this group" }, { status: 404 });

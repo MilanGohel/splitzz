@@ -2,7 +2,7 @@
 import { db, user } from "@/db/schema";
 import { auth } from "@/utils/auth";
 import { headers } from "next/headers";
-import { like, or } from "drizzle-orm";
+import { ilike, or } from "drizzle-orm";
 
 export async function GET(request: Request) {
     try {
@@ -30,8 +30,8 @@ export async function GET(request: Request) {
             .from(user)
             .where(
                 or(
-                    like(user.name, `%${query}%`),
-                    like(user.email, `%${query}%`)
+                    ilike(user.name, `%${query}%`),
+                    ilike(user.email, `%${query}%`)
                 )
             )
             .limit(10);

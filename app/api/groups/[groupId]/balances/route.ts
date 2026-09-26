@@ -1,5 +1,8 @@
 import { db, group } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
+import { auth } from "@/utils/auth";
+import { headers } from "next/headers";
+import { isGroupMember } from "@/lib/helpers/checks";
 
 export async function GET(
   request: Request,
@@ -7,6 +10,20 @@ export async function GET(
 ) {
   const { groupId } = await params;
   const groupIdInt = parseInt(groupId);
+
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session?.user?.id) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!(await isGroupMember(session.user.id, groupIdInt))) {
+    return Response.json(
+      { error: "You are not a member of this group" },
+      { status: 403 }
+    );
+  }
 
   // 1. Validate Group Existence
   const [groupData] = await db

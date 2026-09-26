@@ -52,7 +52,7 @@ export default function DashboardPage() {
                     icon={<TrendingDown className="h-4 w-4 text-loss" />}
                     amount={dashboardData.total_owes / 100}
                     type="loss"
-                    description={`${dashboardData.no_of_people_owing} friends`}
+                    description={`${dashboardData.no_of_people_owed} friends`}
                     isLoading={isFetchingDashboardData}
                 />
                 <DashboardCard
@@ -60,7 +60,7 @@ export default function DashboardPage() {
                     icon={<TrendingUp className="h-4 w-4 text-gain" />}
                     amount={dashboardData.total_owed / 100}
                     type="gain"
-                    description={`From ${dashboardData.no_of_people_owed} friends`}
+                    description={`From ${dashboardData.no_of_people_owing} friends`}
                     isLoading={isFetchingDashboardData}
                 />
             </div>

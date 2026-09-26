@@ -7,8 +7,8 @@ export const expenseInsertSchema = z.object({
     .max(255, "Description must be less than 255 characters"),
   totalAmount: z
     .number({ message: "Amount is required" })
-    .int("Amount must be an integer (cents)")
-    .positive("Amount must be positive"),
+    .positive("Amount must be positive")
+    .max(10000000, "Amount must be less than 10,000,000"),
   paidBy: z
     .string({ message: "Paid by is required" })
     .nonempty("Paid by is required"),
@@ -18,7 +18,7 @@ export const expenseInsertSchema = z.object({
         userId: z
           .string({ message: "User ID is required" })
           .nonempty("User ID for share is required"),
-        shareAmount: z.number().min(0, "Share cannot be negative"),
+        shareAmount: z.number().positive("Share must be positive"),
       })
     )
     .min(1, "At least one person must be involved in the split"),

@@ -131,6 +131,18 @@ export async function DELETE(
       .where(eq(expense.id, expenseIdInt))
       .returning();
 
+    await db.insert(activity).values({
+      type: ACTIVITY_TYPES.EXPENSE_DELETE,
+      groupId: expenseData.groupId,
+      userId: session.user.id,
+      metadata: {
+        expenseId: expenseIdInt,
+        description: expenseData.description,
+        amount: expenseData.totalAmount / 100,
+        currency: "INR",
+      },
+    });
+
     return Response.json(
       {
         message: "Expense deleted successfully",
@@ -254,13 +266,13 @@ export async function PATCH(
           updatedAt: now,
         }))
       );
-      const resultData = db.query.expense.findFirst({
+      const resultData = await tx.query.expense.findFirst({
         where: eq(expense.id, updatedExpense.id),
         with: {
           paidBy: true,
           shares: true
         }
-      })
+      });
 
       await tx.insert(activity).values(
         {
@@ -269,6 +281,9 @@ export async function PATCH(
           type: ACTIVITY_TYPES.EXPENSE_UPDATE,
           metadata: {
             expenseId: updatedExpense.id,
+            description: updatedExpense.description,
+            amount: updatedExpense.totalAmount / 100,
+            currency: "INR",
             expense: updatedExpense,
             oldExpense: existingExpense,
             shares: sharesWithCents,

@@ -190,8 +190,8 @@ export function ExpenseDialog({
 
           <Input
             type="number"
-            inputMode="numeric"
-            step={1}
+            inputMode="decimal"
+            step="0.01"
             min={0}
             placeholder="Amount"
             {...form.register("totalAmount", {
@@ -200,7 +200,7 @@ export function ExpenseDialog({
                 const v = e.target.value;
                 form.setValue(
                   "totalAmount",
-                  v === "" ? 0 : Math.trunc(Number(v))
+                  v === "" ? 0 : Number(v)
                 );
               },
             })}

@@ -36,7 +36,7 @@ export async function GET(
     );
   }
 
-  const settlements = db.query.settlement.findMany({
+  const settlements = await db.query.settlement.findMany({
     where: eq(settlement.groupId, groupIdInt),
     with: {
       fromUser: true,
@@ -62,6 +62,13 @@ export async function POST(
   const idempotencyKeyHeader = request.headers.get("Idempotency-Key");
 
   try {
+    const session = await auth.api.getSession({
+      headers: await headers()
+    });
+    if (!session?.user?.id) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     if (idempotencyKeyHeader) {
       const existingKey = await db.query.idempotencyKey.findFirst({
         where: eq(idempotencyKey.key, idempotencyKeyHeader),
@@ -78,18 +85,6 @@ export async function POST(
           status: existingKey.responseStatus,
         });
       }
-    }
-
-    if (!idempotencyKeyHeader) {
-      return Response.json({
-        error: "Idempotency key not found"
-      }, { status: 400 })
-    }
-    const session = await auth.api.getSession({
-      headers: await headers()
-    })
-    if (!session?.user.id) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const groupData = await db.query.group.findFirst({
@@ -165,6 +160,8 @@ export async function POST(
         type: ACTIVITY_TYPES.SETTLEMENT_CREATE,
         metadata: {
           settlement: newSettlement,
+          amount: newSettlement.amount / 100,
+          currency: "INR",
         }
       })
       return newSettlement;

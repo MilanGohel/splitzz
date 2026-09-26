@@ -101,18 +101,33 @@ const ExpenseItem = memo(function ExpenseItem({
                 </div>
                 <div className="flex items-center gap-4">
                     <div className="text-right">
-                        {expense.paidBy.id === userId ? (
-                            <>
-                                <span className="text-gain text-sm">You lent </span>
-                                <p className="font-bold text-gain text-xl">
-                                    {(
-                                        (expense.shares.find(
-                                            (s: any) => s.userId === userId
-                                        )?.shareAmount ?? 0) / 100
-                                    ).toFixed(2)}
-                                </p>
-                            </>
-                        ) : (
+                        {expense.paidBy.id === userId ? (() => {
+                            const myShareAmount = expense.shares.find(
+                                (s: any) => s.userId === userId
+                            )?.shareAmount ?? 0;
+                            const isPaidForSelf = expense.totalAmount === myShareAmount;
+                            const lentAmount = (expense.totalAmount - myShareAmount) / 100;
+
+                            if (isPaidForSelf || lentAmount <= 0) {
+                                return (
+                                    <>
+                                        <span className="text-muted-foreground text-sm">You paid for yourself</span>
+                                        <p className="font-bold text-muted-foreground text-xl">
+                                            {(0).toFixed(2)}
+                                        </p>
+                                    </>
+                                );
+                            }
+
+                            return (
+                                <>
+                                    <span className="text-gain text-sm">You lent </span>
+                                    <p className="font-bold text-gain text-xl">
+                                        {lentAmount.toFixed(2)}
+                                    </p>
+                                </>
+                            );
+                        })() : (
                             <>
 
                                 {(expense.shares.find(

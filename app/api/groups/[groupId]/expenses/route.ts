@@ -83,6 +83,22 @@ export async function POST(
   const idempotencyKeyHeader = request.headers.get("Idempotency-Key");
 
   try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+    if (!session?.user?.id) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!(await isGroupMember(session.user.id, groupIdInt))) {
+      return Response.json(
+        {
+          error: "You are not a member of this group. You can't add expenses.",
+        },
+        { status: 403 }
+      );
+    }
+
     if (idempotencyKeyHeader) {
       const existingKey = await db.query.idempotencyKey.findFirst({
         where: eq(idempotencyKey.key, idempotencyKeyHeader),
@@ -100,14 +116,7 @@ export async function POST(
         });
       }
     }
-    if (!idempotencyKeyHeader) {
-      return Response.json(
-        {
-          error: "Idempotency key is required",
-        },
-        { status: 400 }
-      );
-    }
+
     const body = await request.json();
 
     const validatedData = await expenseInsertSchema.safeParseAsync(body);
@@ -181,6 +190,18 @@ export async function POST(
       );
     }
 
+    const isPayer = paidBy === session.user.id;
+    const isOwner = groupData.ownerId === session.user.id;
+
+    if (!isPayer && !isOwner) {
+      return Response.json(
+        {
+          error: "Access Denied: You can only create expenses paid by yourself or as group admin.",
+        },
+        { status: 403 }
+      );
+    }
+
     const result = await db.transaction(async (tx) => {
       if (idempotencyKeyHeader) {
         await tx.insert(idempotencyKey).values({
@@ -235,6 +256,7 @@ export async function POST(
         metadata: {
           expenseId: insertedExpense.id,
           expenseDescription: description,
+          description: description,
           amount: totalAmount,
           currency: "INR",
         },

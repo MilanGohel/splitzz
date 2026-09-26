@@ -33,6 +33,30 @@ export function ActivityItem({ activity }: ActivityItemProps) {
 
     const name = getName();
 
+    const getSafeAmount = () => {
+        let raw = metadata?.amount;
+        if (raw === undefined || raw === null) {
+            if (metadata?.settlement?.amount !== undefined) {
+                raw = Number(metadata.settlement.amount) / 100;
+            } else if (metadata?.expense?.totalAmount !== undefined) {
+                raw = Number(metadata.expense.totalAmount) / 100;
+            } else if (metadata?.oldExpense?.totalAmount !== undefined) {
+                raw = Number(metadata.oldExpense.totalAmount) / 100;
+            }
+        }
+        if (raw === undefined || raw === null || isNaN(Number(raw))) {
+            return undefined;
+        }
+        const num = Number(raw);
+        if (metadata?.inCents || metadata?.isCents) {
+            return num / 100;
+        }
+        return num;
+    };
+
+    const parsedAmount = getSafeAmount();
+    const currency = metadata?.currency || "INR";
+
     const getActivityConfig = () => {
         switch (type) {
             case ACTIVITY_TYPES.EXPENSE_CREATE:
@@ -41,9 +65,9 @@ export function ActivityItem({ activity }: ActivityItemProps) {
                     iconColor: "text-green-500",
                     bgColor: "bg-green-500/10",
                     title: "Expense Added",
-                    description: `${name} added "${metadata.expenseDescription}" in "${group.name}"`,
-                    amount: metadata.amount,
-                    currency: metadata.currency
+                    description: `${name} added "${metadata.expenseDescription || metadata.description || "an expense"}" in "${group.name}"`,
+                    amount: parsedAmount,
+                    currency
                 };
             case ACTIVITY_TYPES.EXPENSE_UPDATE:
                 return {
@@ -51,9 +75,9 @@ export function ActivityItem({ activity }: ActivityItemProps) {
                     iconColor: "text-blue-500",
                     bgColor: "bg-blue-500/10",
                     title: "Expense Updated",
-                    description: `${name} updated "${metadata.description}" in "${group.name}"`,
-                    amount: metadata.amount,
-                    currency: metadata.currency
+                    description: `${name} updated "${metadata.description || metadata.expenseDescription || "an expense"}" in "${group.name}"`,
+                    amount: parsedAmount,
+                    currency
                 };
             case ACTIVITY_TYPES.EXPENSE_DELETE:
                 return {
@@ -61,9 +85,9 @@ export function ActivityItem({ activity }: ActivityItemProps) {
                     iconColor: "text-red-500",
                     bgColor: "bg-red-500/10",
                     title: "Expense Deleted",
-                    description: `${name} deleted "${metadata.description}" from "${group.name}"`,
-                    amount: metadata.amount,
-                    currency: metadata.currency
+                    description: `${name} deleted "${metadata.description || metadata.expenseDescription || "an expense"}" from "${group.name}"`,
+                    amount: parsedAmount,
+                    currency
                 };
             case ACTIVITY_TYPES.SETTLEMENT_CREATE:
                 return {
@@ -72,8 +96,8 @@ export function ActivityItem({ activity }: ActivityItemProps) {
                     bgColor: "bg-emerald-600/10",
                     title: "Settlement Recorded",
                     description: `${name} recorded a payment in "${group.name}"`,
-                    amount: metadata.amount,
-                    currency: metadata.currency
+                    amount: parsedAmount,
+                    currency
                 };
             case ACTIVITY_TYPES.GROUP_JOIN:
                 return {
@@ -154,9 +178,9 @@ export function ActivityItem({ activity }: ActivityItemProps) {
                         {config.description}
                     </p>
 
-                    {config.amount !== undefined && (
+                    {config.amount !== undefined && !isNaN(Number(config.amount)) && (
                         <div className="mt-2 text-sm font-medium">
-                            {config.currency} {config.amount.toFixed(2)}
+                            {config.currency || "INR"} {Number(config.amount).toFixed(2)}
                         </div>
                     )}
                 </div>
