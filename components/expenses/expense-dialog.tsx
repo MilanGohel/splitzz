@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
+import axios from "axios";
+import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -40,6 +42,9 @@ import {
   ShoppingBag,
   Plane,
   Receipt,
+  Camera,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 
 export type SplitType = "equal" | "unequal" | "percentage" | "shares";
@@ -197,6 +202,8 @@ export function ExpenseDialog({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [percentages, setPercentages] = useState<Record<string, number>>({});
   const [sharesRatio, setSharesRatio] = useState<Record<string, number>>({});
+  const [isScanning, setIsScanning] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   /* ---------------- form ---------------- */
 
@@ -213,6 +220,80 @@ export function ExpenseDialog({
 
   const totalAmount = form.watch("totalAmount");
   const shares = form.watch("shares");
+
+  /* ---------------- receipt upload & scan handler ---------------- */
+
+  const handleReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsScanning(true);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+
+      const res = await axios.post("/api/receipts/scan", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      const parsed = res.data?.data || res.data?.receipt || res.data;
+      if (parsed) {
+        if (parsed.description || parsed.merchant) {
+          form.setValue("description", parsed.description || parsed.merchant, {
+            shouldValidate: true,
+          });
+        }
+        if (typeof parsed.totalAmount === "number" && parsed.totalAmount > 0) {
+          const newTotal = parsed.totalAmount;
+          form.setValue("totalAmount", newTotal, {
+            shouldValidate: true,
+          });
+
+          // Trigger split calculation
+          if (splitType === "equal") {
+            const idsToUse =
+              selectedIds.length > 0 ? selectedIds : members.map((m) => m.id);
+            if (selectedIds.length === 0) {
+              setSelectedIds(idsToUse);
+            }
+            form.setValue("shares", equalSplit(newTotal, idsToUse));
+          } else if (splitType === "percentage") {
+            form.setValue(
+              "shares",
+              calculatePercentageSplit(newTotal, members, percentages)
+            );
+          } else if (splitType === "shares") {
+            form.setValue(
+              "shares",
+              calculateSharesSplit(newTotal, members, sharesRatio)
+            );
+          } else if (splitType === "unequal") {
+            const idsToUse = members.map((m) => m.id);
+            form.setValue("shares", equalSplit(newTotal, idsToUse));
+          }
+        }
+        if (
+          parsed.category &&
+          (CATEGORIES as readonly string[]).includes(parsed.category)
+        ) {
+          form.setValue("category", parsed.category);
+        }
+
+        toast.success("Receipt scanned successfully!");
+      }
+    } catch (err: any) {
+      console.error("Receipt scan error:", err);
+      toast.error(
+        err?.response?.data?.error ||
+          "Failed to scan receipt. Please enter details manually."
+      );
+    } finally {
+      setIsScanning(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
 
   /* ---------------- dialog open sync ---------------- */
 
@@ -393,10 +474,51 @@ export function ExpenseDialog({
 
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {mode === "add" ? "Add Expense" : "Edit Expense"}
-          </DialogTitle>
+          <div className="flex items-center justify-between gap-3 pr-6">
+            <DialogTitle>
+              {mode === "add" ? "Add Expense" : "Edit Expense"}
+            </DialogTitle>
+            {mode === "add" && (
+              <div>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleReceiptUpload}
+                  accept="image/*"
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isScanning}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="gap-1.5 text-xs h-8 border-dashed hover:border-primary"
+                >
+                  {isScanning ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                      <span>Scanning receipt with AI...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="h-3.5 w-3.5 text-primary" />
+                      <Sparkles className="h-3 w-3 text-amber-500 -ml-1" />
+                      <span>Scan Receipt</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
         </DialogHeader>
+
+        {isScanning && (
+          <div className="flex items-center gap-2 p-3 text-xs rounded-lg bg-primary/10 text-primary border border-primary/20 animate-pulse">
+            <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+            <span>Scanning receipt with AI... extracting merchant, amount, category & split.</span>
+          </div>
+        )}
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <Input placeholder="Description" {...form.register("description")} />
