@@ -73,7 +73,8 @@ interface GroupState {
 
   fetchBalances: (groupId: number) => Promise<void>;
   fetchGroups: () => Promise<void>;
-  fetchGroupData: (groupId: number) => Promise<void>;
+  fetchGroupData: (groupId: number, force?: boolean) => Promise<void>;
+  prefetchGroupData: (groupId: number) => Promise<void>;
   fetchMoreExpenses: (groupId: number) => Promise<void>;
   toggleSimplifiyDebts: (groupId: number) => Promise<void>;
 
@@ -238,9 +239,113 @@ export const useGroupStore = create<GroupState>((set, get) => ({
     }
   },
 
-  fetchGroupData: async (groupId) => {
-    set({ isFetchingGroupData: true });
+  prefetchGroupData: async (groupId: number) => {
+    const state = get();
+    // If already has data, no need to prefetch aggressively
+    if (state.expenses[groupId] && state.members[groupId]) return;
+
     try {
+      const res = await api.get(`/api/groups/${groupId}?full=true`);
+      if (res.data?.group) {
+        set((s) => {
+          const existingGroupIndex = s.groups.findIndex((g) => g.id === groupId);
+          const updatedGroups = [...s.groups];
+          if (existingGroupIndex >= 0) {
+            updatedGroups[existingGroupIndex] = res.data.group;
+          } else {
+            updatedGroups.push(res.data.group);
+          }
+
+          return {
+            groups: updatedGroups,
+            members: {
+              ...s.members,
+              ...(res.data.members ? { [groupId]: res.data.members } : {}),
+            },
+            expenses: {
+              ...s.expenses,
+              ...(res.data.expenses
+                ? {
+                    [groupId]: {
+                      items: res.data.expenses,
+                      hasMore:
+                        (res.data.pagination?.total || 0) >
+                        res.data.expenses.length,
+                      offset: res.data.expenses.length,
+                      total:
+                        res.data.pagination?.total ||
+                        res.data.expenses.length,
+                    },
+                  }
+                : {}),
+            },
+          };
+        });
+      }
+    } catch {
+      // Prefetch fails silently in background
+    }
+  },
+
+  fetchGroupData: async (groupId, force = false) => {
+    const state = get();
+    const hasCachedData = Boolean(
+      state.expenses[groupId] && state.members[groupId]
+    );
+
+    // Only set blocking loading flag if no cached data exists or if forced
+    if (!hasCachedData || force) {
+      set({ isFetchingGroupData: true });
+    }
+
+    try {
+      // 1. Try consolidated single-trip endpoint (?full=true)
+      try {
+        const fullRes = await api.get(`/api/groups/${groupId}?full=true`);
+        if (
+          fullRes.data?.group &&
+          fullRes.data?.members &&
+          fullRes.data?.expenses
+        ) {
+          set((s) => {
+            const existingGroupIndex = s.groups.findIndex(
+              (g) => g.id === groupId
+            );
+            const updatedGroups = [...s.groups];
+            if (existingGroupIndex >= 0) {
+              updatedGroups[existingGroupIndex] = fullRes.data.group;
+            } else {
+              updatedGroups.push(fullRes.data.group);
+            }
+
+            return {
+              groups: updatedGroups,
+              members: {
+                ...s.members,
+                [groupId]: fullRes.data.members,
+              },
+              expenses: {
+                ...s.expenses,
+                [groupId]: {
+                  items: fullRes.data.expenses,
+                  hasMore:
+                    (fullRes.data.pagination?.total || 0) >
+                    fullRes.data.expenses.length,
+                  offset: fullRes.data.expenses.length,
+                  total:
+                    fullRes.data.pagination?.total ||
+                    fullRes.data.expenses.length,
+                },
+              },
+            };
+          });
+          return;
+        }
+      } catch {
+        // Fallback to separate endpoints if full=true failed or mocked
+      }
+
+      // 2. Parallel requests fallback
       const [expensesRes, membersRes, groupRes] = await Promise.all([
         api.get(`/api/groups/${groupId}/expenses`),
         api.get(`/api/groups/${groupId}/members`),
@@ -253,7 +358,9 @@ export const useGroupStore = create<GroupState>((set, get) => ({
             ...s.expenses,
             [groupId]: {
               items: expensesRes.data.expenses,
-              hasMore: expensesRes.data.pagination.total > expensesRes.data.expenses.length,
+              hasMore:
+                expensesRes.data.pagination.total >
+                expensesRes.data.expenses.length,
               offset: expensesRes.data.expenses.length,
               total: expensesRes.data.pagination.total,
             },
@@ -270,17 +377,16 @@ export const useGroupStore = create<GroupState>((set, get) => ({
         }));
       }
 
-      // Update or add the current group to the groups array
       if (groupRes.data.group) {
         set((s) => {
-          const existingGroupIndex = s.groups.findIndex((g) => g.id === groupId);
+          const existingGroupIndex = s.groups.findIndex(
+            (g) => g.id === groupId
+          );
           const updatedGroups = [...s.groups];
 
           if (existingGroupIndex >= 0) {
-            // Update existing group
             updatedGroups[existingGroupIndex] = groupRes.data.group;
           } else {
-            // Add new group
             updatedGroups.push(groupRes.data.group);
           }
 

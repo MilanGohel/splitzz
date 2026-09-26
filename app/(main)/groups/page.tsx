@@ -60,8 +60,16 @@ const formatMoney = (cents: number) =>
     }).format(Math.abs(cents) / 100);
 
 const GroupCard = memo(function GroupCard({ group }: { group: any }) {
+    const prefetchGroupData = useGroupStore((s) => s.prefetchGroupData);
+
     return (
-        <Link href={`/groups/${group.id}`} className="block transition-transform hover:-translate-y-1 h-full flex">
+        <Link
+            href={`/groups/${group.id}`}
+            prefetch={true}
+            onMouseEnter={() => prefetchGroupData(group.id)}
+            onTouchStart={() => prefetchGroupData(group.id)}
+            className="block transition-transform hover:-translate-y-1 h-full flex"
+        >
             <Card className="bg-card border-border text-card-foreground w-full flex flex-col hover:border-brand/50 transition-colors">
                 <CardHeader>
                     <CardTitle className="flex items-center justify-between">

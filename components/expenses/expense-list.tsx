@@ -1,9 +1,18 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useState, useMemo } from "react";
 import { useGroupStore } from "@/lib/stores/group-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Receipt,
   Utensils,
@@ -15,9 +24,12 @@ import {
   Plane,
   Trash2,
   Loader2,
+  Search,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ExpenseDialog } from "@/components/expenses/expense-dialog";
+import { CATEGORIES } from "@/lib/zod/expense";
 import {
   Dialog,
   DialogContent,
@@ -50,6 +62,33 @@ function getCategoryIcon(category?: string) {
   }
 }
 
+export function ExpenseListSkeleton() {
+  return (
+    <div className="grid gap-3">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <Card key={i} className="bg-card border-border text-card-foreground">
+          <div className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-4">
+              <Skeleton className="h-10 w-10 rounded-full bg-muted" />
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-36 bg-muted" />
+                <Skeleton className="h-3 w-24 bg-muted" />
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="space-y-1 text-right flex flex-col items-end">
+                <Skeleton className="h-3 w-16 bg-muted" />
+                <Skeleton className="h-5 w-20 bg-muted" />
+              </div>
+              <Skeleton className="h-8 w-16 rounded-md bg-muted" />
+            </div>
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 export function ExpenseList({ groupId }: { groupId: number }) {
   const {
     expenses: allExpenses,
@@ -58,17 +97,35 @@ export function ExpenseList({ groupId }: { groupId: number }) {
     isFetchingGroupData,
   } = useGroupStore();
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("all");
+
   const groupExpenses = allExpenses[groupId];
   const expenses = groupExpenses?.items || [];
   const hasMore = groupExpenses?.hasMore || false;
   const loggedInUser = useAuthStore((state) => state.user);
 
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter((expense) => {
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch =
+        q === "" ||
+        expense.description.toLowerCase().includes(q) ||
+        expense.paidBy.name.toLowerCase().includes(q) ||
+        (expense.category &&
+          expense.category.toLowerCase().includes(q));
+
+      const matchesCategory =
+        selectedCategory === "all" ||
+        (expense.category &&
+          expense.category.toLowerCase() === selectedCategory.toLowerCase());
+
+      return matchesSearch && matchesCategory;
+    });
+  }, [expenses, searchQuery, selectedCategory]);
+
   if (isFetchingGroupData && !groupExpenses) {
-    return (
-      <div className="flex h-64 w-full items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin" />
-      </div>
-    );
+    return <ExpenseListSkeleton />;
   }
 
   if (expenses.length === 0) {
@@ -83,32 +140,110 @@ export function ExpenseList({ groupId }: { groupId: number }) {
   }
 
   return (
-    <div className="grid gap-4">
-      {expenses.map((expense) => (
-        <ExpenseItem
-          key={expense.id}
-          expense={expense}
-          userId={loggedInUser?.id}
-          groupId={groupId}
-        />
-      ))}
+    <div className="space-y-4">
+      {/* Search and Category Filter Toolbar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search expenses, payers..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-8 pr-8 h-9 text-xs sm:text-sm bg-card"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
 
-      {hasMore && (
-        <div className="flex justify-center mt-4">
-          <Button
-            variant="outline"
-            onClick={() => fetchMoreExpenses(groupId)}
-            disabled={isFetchingMoreExpenses}
-          >
-            {isFetchingMoreExpenses ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Loading...
-              </>
-            ) : (
-              "Load More"
-            )}
-          </Button>
+        <div className="flex items-center gap-2">
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger className="w-[140px] h-9 text-xs bg-card">
+              <SelectValue placeholder="All Categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {CATEGORIES.map((cat) => (
+                <SelectItem key={cat} value={cat} className="capitalize">
+                  {cat}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {(searchQuery || selectedCategory !== "all") && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearchQuery("");
+                setSelectedCategory("all");
+              }}
+              className="text-xs h-9 text-muted-foreground hover:text-foreground px-2"
+            >
+              Reset
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {filteredExpenses.length === 0 ? (
+        <Card className="bg-card border-border text-card-foreground">
+          <CardContent className="flex flex-col items-center justify-center p-8 text-center">
+            <Search className="h-8 w-8 text-muted-foreground mb-2" />
+            <p className="font-medium text-foreground">
+              No matching expenses found
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Try adjusting your search query or category filter.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSearchQuery("");
+                setSelectedCategory("all");
+              }}
+              className="mt-3 text-xs"
+            >
+              Clear filters
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4">
+          {filteredExpenses.map((expense) => (
+            <ExpenseItem
+              key={expense.id}
+              expense={expense}
+              userId={loggedInUser?.id}
+              groupId={groupId}
+            />
+          ))}
+
+          {hasMore && !searchQuery && selectedCategory === "all" && (
+            <div className="flex justify-center mt-4">
+              <Button
+                variant="outline"
+                onClick={() => fetchMoreExpenses(groupId)}
+                disabled={isFetchingMoreExpenses}
+              >
+                {isFetchingMoreExpenses ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  "Load More"
+                )}
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

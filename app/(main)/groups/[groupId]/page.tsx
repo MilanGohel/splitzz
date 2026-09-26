@@ -6,6 +6,7 @@ import { ExpenseDialog } from "@/components/expenses/expense-dialog";
 import { AddMemberDialog } from "@/components/groups/add-member-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Receipt,
   ArrowRightLeft,
@@ -135,42 +136,67 @@ export default function GroupPage({
     <div className="flex flex-col gap-6">
       {/* Group Header */}
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 pb-2">
-        <div className="space-y-2">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-              {group?.name || (isFetchingGroupData ? "Loading..." : "Group Details")}
-            </h1>
-            {group?.description ? (
-              <p className="text-sm text-muted-foreground mt-1 max-w-xl">
-                {group.description}
-              </p>
-            ) : null}
-          </div>
+        <div className="space-y-2 flex-1">
+          {isFetchingGroupData && !group ? (
+            <div className="space-y-2.5">
+              <Skeleton className="h-8 w-56 bg-muted" />
+              <Skeleton className="h-4 w-72 bg-muted" />
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <Skeleton className="h-6 w-28 bg-muted" />
+                <Skeleton className="h-6 w-24 bg-muted" />
+                <Skeleton className="h-6 w-32 bg-muted" />
+              </div>
+            </div>
+          ) : (
+            <>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+                  {group?.name || "Group Details"}
+                </h1>
+                {group?.description ? (
+                  <p className="text-sm text-muted-foreground mt-1 max-w-xl">
+                    {group.description}
+                  </p>
+                ) : null}
+              </div>
 
-          {/* Key Stat Badges */}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <Badge variant="outline" className="gap-1.5 py-1 px-2.5 text-xs bg-card border-border">
-              <IndianRupee className="h-3.5 w-3.5 text-primary" />
-              Total Spent:{" "}
-              <span className="font-semibold text-foreground">
-                {formatMoney(group?.totalSpent ?? 0)}
-              </span>
-            </Badge>
+              {/* Key Stat Badges */}
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <Badge
+                  variant="outline"
+                  className="gap-1.5 py-1 px-2.5 text-xs bg-card border-border"
+                >
+                  <IndianRupee className="h-3.5 w-3.5 text-primary" />
+                  Total Spent:{" "}
+                  <span className="font-semibold text-foreground">
+                    {formatMoney(group?.totalSpent ?? 0)}
+                  </span>
+                </Badge>
 
-            <Badge variant="outline" className="gap-1.5 py-1 px-2.5 text-xs bg-card border-border">
-              <Users className="h-3.5 w-3.5 text-muted-foreground" />
-              <span>
-                {memberCount} {memberCount === 1 ? "Member" : "Members"}
-              </span>
-            </Badge>
+                <Badge
+                  variant="outline"
+                  className="gap-1.5 py-1 px-2.5 text-xs bg-card border-border"
+                >
+                  <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span>
+                    {memberCount} {memberCount === 1 ? "Member" : "Members"}
+                  </span>
+                </Badge>
 
-            {group?.createdAt && (
-              <Badge variant="outline" className="gap-1.5 py-1 px-2.5 text-xs bg-card border-border">
-                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                <span>Created {new Date(group.createdAt).toLocaleDateString()}</span>
-              </Badge>
-            )}
-          </div>
+                {group?.createdAt && (
+                  <Badge
+                    variant="outline"
+                    className="gap-1.5 py-1 px-2.5 text-xs bg-card border-border"
+                  >
+                    <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span>
+                      Created {new Date(group.createdAt).toLocaleDateString()}
+                    </span>
+                  </Badge>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Action Buttons */}

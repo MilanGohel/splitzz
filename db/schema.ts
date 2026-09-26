@@ -98,7 +98,9 @@ export const groupMember = pgTable("group_members", {
   updatedAt: timestamp("updated_at").$onUpdate(() => new Date())
 },
   (t) => [
-    unique().on(t.groupId, t.userId).nullsNotDistinct()
+    unique().on(t.groupId, t.userId).nullsNotDistinct(),
+    index("group_member_user_idx").on(t.userId),
+    index("group_member_group_idx").on(t.groupId),
   ]
 );
 
@@ -115,7 +117,9 @@ export const expense = pgTable("expenses", {
   check(
     "amount_positive",
     sql`${t.totalAmount} > 0`
-  )
+  ),
+  index("expense_group_created_idx").on(t.groupId, t.createdAt),
+  index("expense_paid_by_idx").on(t.paidBy),
 ]
 );
 
@@ -130,7 +134,9 @@ export const expenseShare = pgTable("expense_shares", {
   check(
     "amount_positive",
     sql`${t.shareAmount} > 0`
-  )
+  ),
+  index("expense_share_expense_idx").on(t.expenseId),
+  index("expense_share_user_idx").on(t.userId),
 ])
 
 export const settlement = pgTable("settlements", {
@@ -148,7 +154,8 @@ export const settlement = pgTable("settlements", {
   check(
     "amount_positive",
     sql`${t.amount} > 0`
-  )
+  ),
+  index("settlement_group_idx").on(t.groupId),
 ]);
 
 export const idempotencyKey = pgTable("idempotency_keys", {
@@ -255,7 +262,10 @@ export const activity = pgTable("activities", {
   metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").$onUpdate(() => new Date())
-});
+}, (t) => [
+  index("activity_group_created_idx").on(t.groupId, t.createdAt),
+  index("activity_user_idx").on(t.userId),
+]);
 
 export const activityRelations = relations(activity, ({ one }) => ({
   user: one(user, {
