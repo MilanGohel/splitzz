@@ -35,9 +35,9 @@ jest.mock('@/db/schema', () => {
 
     return {
         db: mockDb,
-        expense: { id: 'id', groupId: 'group_id', paidBy: 'paid_by', totalAmount: 'total_amount', createdAt: 'created_at' },
+        expense: { id: 'id', groupId: 'group_id', paidBy: 'paid_by', totalAmount: 'total_amount', createdAt: 'created_at', category: 'category', updatedAt: 'updated_at' },
         expenseShare: { expenseId: 'expense_id', userId: 'user_id' },
-        group: { id: 'id', ownerId: 'owner_id' },
+        group: { id: 'id', ownerId: 'owner_id', currency: 'currency' },
         groupMember: { groupId: 'group_id', userId: 'user_id' },
         idempotencyKey: { key: 'key' },
         activity: {},
@@ -58,7 +58,7 @@ jest.mock('@/lib/helpers/checks', () => ({
 }));
 
 import { GET, POST } from '@/app/api/groups/[groupId]/expenses/route';
-import { GET as GETExpense, DELETE as DELETEExpense } from '@/app/api/expenses/[expenseId]/route';
+import { GET as GETExpense, DELETE as DELETEExpense, PATCH as PATCHExpense } from '@/app/api/expenses/[expenseId]/route';
 import { auth } from '@/utils/auth';
 import { db } from '@/db/schema';
 import { isGroupMember } from '@/lib/helpers/checks';
@@ -209,6 +209,40 @@ describe('Expenses API', () => {
 
             expect(response.status).toBe(201);
         });
+
+        it('creates expense with category successfully', async () => {
+            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-1' } });
+            mockIsGroupMember.mockResolvedValueOnce(true);
+            ((mockDb as any).where as jest.Mock).mockResolvedValueOnce([
+                { userId: 'user-1' }, { userId: 'user-2' },
+            ]);
+            ((mockDb as any).limit as jest.Mock).mockResolvedValueOnce([{ id: 1, name: 'Test Group', ownerId: 'user-1' }]);
+            ((mockDb as any).transaction as jest.Mock).mockImplementationOnce(async (fn: any) => {
+                const mockExpense = { id: 1, description: 'Dinner', totalAmount: 10000, category: 'food' };
+                return fn({
+                    insert: jest.fn().mockReturnThis(),
+                    values: jest.fn().mockReturnThis(),
+                    returning: jest.fn().mockResolvedValue([mockExpense]),
+                    update: jest.fn().mockReturnThis(),
+                    set: jest.fn().mockReturnThis(),
+                    where: jest.fn().mockReturnThis(),
+                    query: {
+                        expense: { findFirst: jest.fn().mockResolvedValue(mockExpense) },
+                    },
+                });
+            });
+
+            const request = new Request('http://localhost/api/groups/1/expenses', {
+                method: 'POST',
+                body: JSON.stringify({ ...validExpense, category: 'food' }),
+                headers: { 'Content-Type': 'application/json' },
+            });
+            const response = await POST(request, { params: Promise.resolve({ groupId: '1' }) });
+            const data = await response.json();
+
+            expect(response.status).toBe(201);
+            expect(data.expense.category).toBe('food');
+        });
     });
 
     describe('GET /api/expenses/[expenseId]', () => {
@@ -295,6 +329,62 @@ describe('Expenses API', () => {
             const response = await DELETEExpense(request, { params: Promise.resolve({ expenseId: '1' }) });
 
             expect(response.status).toBe(200);
+        });
+    });
+
+    describe('PATCH /api/expenses/[expenseId]', () => {
+        const updatePayload = {
+            description: 'Updated Dinner',
+            totalAmount: 100,
+            paidBy: 'user-1',
+            category: 'food',
+            shares: [{ userId: 'user-1', shareAmount: 50 }, { userId: 'user-2', shareAmount: 50 }],
+        };
+
+        it('returns 401 when not authenticated', async () => {
+            mockGetSession.mockResolvedValueOnce(null);
+
+            const request = new Request('http://localhost/api/expenses/1', {
+                method: 'PATCH',
+                body: JSON.stringify(updatePayload),
+            });
+            const response = await PATCHExpense(request, { params: Promise.resolve({ expenseId: '1' }) });
+
+            expect(response.status).toBe(401);
+        });
+
+        it('updates expense and category successfully', async () => {
+            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-1' } });
+            ((mockDb as any).limit as jest.Mock)
+                .mockResolvedValueOnce([{ id: 1, groupId: 1, paidBy: 'user-1', createdAt: new Date() }])
+                .mockResolvedValueOnce([{ id: 1, ownerId: 'user-1' }]);
+
+            const updatedExpense = { id: 1, description: 'Updated Dinner', totalAmount: 10000, category: 'food' };
+            ((mockDb as any).transaction as jest.Mock).mockImplementationOnce(async (fn: any) => {
+                return fn({
+                    update: jest.fn().mockReturnThis(),
+                    set: jest.fn().mockReturnThis(),
+                    where: jest.fn().mockReturnThis(),
+                    returning: jest.fn().mockResolvedValue([updatedExpense]),
+                    delete: jest.fn().mockReturnThis(),
+                    insert: jest.fn().mockReturnThis(),
+                    values: jest.fn().mockReturnThis(),
+                    query: {
+                        expense: { findFirst: jest.fn().mockResolvedValue(updatedExpense) },
+                    },
+                });
+            });
+
+            const request = new Request('http://localhost/api/expenses/1', {
+                method: 'PATCH',
+                body: JSON.stringify(updatePayload),
+                headers: { 'Content-Type': 'application/json' },
+            });
+            const response = await PATCHExpense(request, { params: Promise.resolve({ expenseId: '1' }) });
+            const data = await response.json();
+
+            expect(response.status).toBe(200);
+            expect(data.expense.category).toBe('food');
         });
     });
 });

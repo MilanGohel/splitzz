@@ -131,7 +131,7 @@ export async function POST(
       );
     }
 
-    const { description, paidBy, totalAmount, shares } = validatedData.data;
+    const { description, paidBy, totalAmount, shares, category } = validatedData.data;
 
     const uniqueMemberSet = new Set<string>();
     uniqueMemberSet.add(paidBy);
@@ -220,6 +220,7 @@ export async function POST(
           groupId: groupIdInt,
           paidBy,
           totalAmount: totalAmountCents,
+          category,
         })
         .returning();
 
@@ -259,6 +260,7 @@ export async function POST(
           description: description,
           amount: totalAmount,
           currency: "INR",
+          category: insertedExpense.category,
         },
       })
       return expenseWithRelations;

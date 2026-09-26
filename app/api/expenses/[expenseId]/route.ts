@@ -214,7 +214,7 @@ export async function PATCH(
       );
     }
 
-    const { description, paidBy, totalAmount, shares } = validatedData.data;
+    const { description, paidBy, totalAmount, shares, category } = validatedData.data;
 
     // 5. Math & Currency Validation
     const totalAmountCents = Math.round(totalAmount * 100);
@@ -246,6 +246,7 @@ export async function PATCH(
           description,
           paidBy,
           totalAmount: totalAmountCents,
+          category,
           updatedAt: now, // Important: Update the timestamp
         })
         .where(eq(expense.id, expenseIdInt))

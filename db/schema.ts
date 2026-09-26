@@ -84,6 +84,7 @@ export const group = pgTable("groups", {
   name: text("name").notNull(),
   description: text("description"),
   ownerId: text("owner_id").notNull().references(() => user.id, { onDelete: "restrict", onUpdate: "cascade" }),
+  currency: text("currency").default("INR").notNull(),
   simplifyDebts: boolean("simplify_debts").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").$onUpdate(() => new Date())
@@ -106,6 +107,7 @@ export const expense = pgTable("expenses", {
   groupId: integer("group_id").notNull().references(() => group.id, { onDelete: "cascade", onUpdate: "cascade" }),
   totalAmount: integer("total_amount").notNull(),
   description: text("description"),
+  category: text("category").default("general"),
   paidBy: text("paid_by").notNull().references(() => user.id, { onDelete: "restrict", onUpdate: "cascade" }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").$onUpdate(() => new Date())

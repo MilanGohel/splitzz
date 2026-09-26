@@ -12,6 +12,7 @@ export type Group = {
   id: number;
   name: string;
   description: string | null;
+  currency?: string;
   createdAt: string;
   simplifyDebts: boolean;
   totalSpent?: number;
@@ -32,6 +33,7 @@ export type Expense = {
   id: number;
   description: string;
   totalAmount: number;
+  category?: string;
   paidBy: Member;
   shares: Share[];
   createdAt: string;
@@ -88,6 +90,7 @@ interface GroupState {
       totalAmount: number;
       paidBy: string;
       shares: Share[];
+      category?: string;
     }
   ) => Promise<void>;
 
@@ -99,8 +102,11 @@ interface GroupState {
       totalAmount: number;
       paidBy: string;
       shares: Share[];
+      category?: string;
     }
   ) => Promise<void>;
+
+  deleteExpense: (groupId: number, expenseId: number) => Promise<void>;
 
   addMember: (groupId: number, email: string) => Promise<void>;
 }
@@ -325,6 +331,7 @@ export const useGroupStore = create<GroupState>((set, get) => ({
           },
         };
       });
+      await get().fetchBalances(groupId);
     } finally {
       set({ isCreatingExpense: false });
     }
@@ -353,8 +360,37 @@ export const useGroupStore = create<GroupState>((set, get) => ({
           },
         };
       });
+      await get().fetchBalances(groupId);
     } finally {
       set({ isUpdatingExpense: false });
+    }
+  },
+
+  deleteExpense: async (groupId, expenseId) => {
+    try {
+      await api.delete(`/api/expenses/${expenseId}`);
+
+      set((s) => {
+        const currentGroupExpenses = s.expenses[groupId];
+        if (!currentGroupExpenses) return s;
+
+        return {
+          expenses: {
+            ...s.expenses,
+            [groupId]: {
+              ...currentGroupExpenses,
+              items: currentGroupExpenses.items.filter((e) => e.id !== expenseId),
+              total: Math.max(0, currentGroupExpenses.total - 1),
+              offset: Math.max(0, currentGroupExpenses.offset - 1),
+            },
+          },
+        };
+      });
+      await get().fetchBalances(groupId);
+      toast.success("Expense deleted successfully");
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error ?? "Failed to delete expense");
+      throw error;
     }
   },
   addMember: async (groupId, email) => {

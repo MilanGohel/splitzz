@@ -9,7 +9,7 @@
  * - shares: array of { userId, amount } with positive amounts
  */
 
-import { expenseInsertSchema } from '@/lib/zod/expense';
+import { expenseInsertSchema, CATEGORIES } from '@/lib/zod/expense';
 
 describe('expenseInsertSchema', () => {
     const validExpense = {
@@ -209,6 +209,38 @@ describe('expenseInsertSchema', () => {
             const result = expenseInsertSchema.safeParse(input);
 
             expect(result.success).toBe(true);
+        });
+    });
+
+    describe('Category Validation', () => {
+        it('exports CATEGORIES list with all 8 standard categories', () => {
+            expect(CATEGORIES).toEqual([
+                'general',
+                'food',
+                'groceries',
+                'transportation',
+                'utilities',
+                'entertainment',
+                'shopping',
+                'travel',
+            ]);
+        });
+
+        it('defaults category to "general" when not provided', () => {
+            const result = expenseInsertSchema.safeParse(validExpense);
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.data.category).toBe('general');
+            }
+        });
+
+        it('accepts explicitly specified category', () => {
+            const input = { ...validExpense, category: 'food' };
+            const result = expenseInsertSchema.safeParse(input);
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.data.category).toBe('food');
+            }
         });
     });
 });

@@ -3,7 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { expenseInsertSchema, ExpenseInsertSchema } from "@/lib/zod/expense";
+import {
+  expenseInsertSchema,
+  ExpenseInsertSchema,
+  ExpenseInsertInput,
+  CATEGORIES,
+} from "@/lib/zod/expense";
 
 import {
   Dialog,
@@ -26,14 +31,50 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Expense, Member, useGroupStore } from "@/lib/stores/group-store";
+import {
+  Utensils,
+  ShoppingBasket,
+  Car,
+  Zap,
+  Film,
+  ShoppingBag,
+  Plane,
+  Receipt,
+} from "lucide-react";
 
-type SplitType = "equal" | "unequal";
+export type SplitType = "equal" | "unequal" | "percentage" | "shares";
+
+export const CATEGORY_ICONS: Record<
+  string,
+  React.ComponentType<{ className?: string }>
+> = {
+  general: Receipt,
+  food: Utensils,
+  groceries: ShoppingBasket,
+  transportation: Car,
+  utilities: Zap,
+  entertainment: Film,
+  shopping: ShoppingBag,
+  travel: Plane,
+};
+
+export const CATEGORY_LABELS: Record<string, string> = {
+  general: "General",
+  food: "Food",
+  groceries: "Groceries",
+  transportation: "Transportation",
+  utilities: "Utilities",
+  entertainment: "Entertainment",
+  shopping: "Shopping",
+  travel: "Travel",
+};
 
 function expenseToForm(expense: Expense): ExpenseInsertSchema {
   return {
     description: expense.description,
     totalAmount: expense.totalAmount / 100,
     paidBy: expense.paidBy.id,
+    category: expense.category || "general",
     shares: expense.shares.map((s) => ({
       userId: s.userId,
       shareAmount: s.shareAmount / 100,
@@ -42,7 +83,7 @@ function expenseToForm(expense: Expense): ExpenseInsertSchema {
 }
 
 function equalSplit(total: number, ids: string[]) {
-  if (ids.length === 0) return [];
+  if (ids.length === 0 || total <= 0) return [];
 
   const cents = Math.round(total * 100);
   const base = Math.floor(cents / ids.length);
@@ -51,6 +92,80 @@ function equalSplit(total: number, ids: string[]) {
   return ids.map((id, i) => ({
     userId: id,
     shareAmount: (base + (i < remainder ? 1 : 0)) / 100,
+  }));
+}
+
+function calculatePercentageSplit(
+  total: number,
+  members: Member[],
+  percentages: Record<string, number>
+) {
+  const activeMembers = members.filter((m) => (percentages[m.id] || 0) > 0);
+  if (activeMembers.length === 0 || total <= 0) return [];
+
+  const totalCents = Math.round(total * 100);
+  let allocatedCents = 0;
+
+  const sharesWithCents = activeMembers.map((m) => {
+    const percent = percentages[m.id] || 0;
+    const cents = Math.round(total * (percent / 100) * 100);
+    allocatedCents += cents;
+    return { userId: m.id, cents };
+  });
+
+  const remainder = totalCents - allocatedCents;
+  if (remainder > 0) {
+    for (let i = 0; i < remainder; i++) {
+      sharesWithCents[i % sharesWithCents.length].cents += 1;
+    }
+  } else if (remainder < 0) {
+    for (let i = 0; i < Math.abs(remainder); i++) {
+      sharesWithCents[i % sharesWithCents.length].cents -= 1;
+    }
+  }
+
+  return sharesWithCents.map((s) => ({
+    userId: s.userId,
+    shareAmount: s.cents / 100,
+  }));
+}
+
+function calculateSharesSplit(
+  total: number,
+  members: Member[],
+  ratios: Record<string, number>
+) {
+  const activeMembers = members.filter((m) => (ratios[m.id] ?? 1) > 0);
+  const totalWeight = activeMembers.reduce(
+    (sum, m) => sum + (ratios[m.id] ?? 1),
+    0
+  );
+  if (totalWeight <= 0 || activeMembers.length === 0 || total <= 0) return [];
+
+  const totalCents = Math.round(total * 100);
+  let allocatedCents = 0;
+
+  const sharesWithCents = activeMembers.map((m) => {
+    const weight = ratios[m.id] ?? 1;
+    const cents = Math.round((totalCents * weight) / totalWeight);
+    allocatedCents += cents;
+    return { userId: m.id, cents };
+  });
+
+  const remainder = totalCents - allocatedCents;
+  if (remainder > 0) {
+    for (let i = 0; i < remainder; i++) {
+      sharesWithCents[i % sharesWithCents.length].cents += 1;
+    }
+  } else if (remainder < 0) {
+    for (let i = 0; i < Math.abs(remainder); i++) {
+      sharesWithCents[i % sharesWithCents.length].cents -= 1;
+    }
+  }
+
+  return sharesWithCents.map((s) => ({
+    userId: s.userId,
+    shareAmount: s.cents / 100,
   }));
 }
 
@@ -70,7 +185,8 @@ export function ExpenseDialog({
   const rawMembers = useGroupStore((s) => s.members[groupId]);
   const members: Member[] = rawMembers ?? [];
 
-  const { createExpense, updateExpense, isCreatingExpense, isUpdatingExpense } = useGroupStore();
+  const { createExpense, updateExpense, isCreatingExpense, isUpdatingExpense } =
+    useGroupStore();
 
   const isLoading = mode === "add" ? isCreatingExpense : isUpdatingExpense;
 
@@ -79,15 +195,18 @@ export function ExpenseDialog({
   const [open, setOpen] = useState(false);
   const [splitType, setSplitType] = useState<SplitType>("equal");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [percentages, setPercentages] = useState<Record<string, number>>({});
+  const [sharesRatio, setSharesRatio] = useState<Record<string, number>>({});
 
   /* ---------------- form ---------------- */
 
-  const form = useForm<ExpenseInsertSchema>({
+  const form = useForm<ExpenseInsertInput, any, ExpenseInsertSchema>({
     resolver: zodResolver(expenseInsertSchema),
     defaultValues: {
       description: "",
       totalAmount: 0,
       paidBy: "",
+      category: "general",
       shares: [],
     },
   });
@@ -105,12 +224,63 @@ export function ExpenseDialog({
       form.reset(values);
       setSelectedIds(values.shares.map((s) => s.userId));
       setSplitType("unequal");
+
+      const initPercentages: Record<string, number> = {};
+      const initRatios: Record<string, number> = {};
+      values.shares.forEach((s) => {
+        if (values.totalAmount > 0) {
+          initPercentages[s.userId] = parseFloat(
+            ((s.shareAmount / values.totalAmount) * 100).toFixed(2)
+          );
+        }
+        initRatios[s.userId] = 1;
+      });
+      setPercentages(initPercentages);
+      setSharesRatio(initRatios);
     } else {
-      form.reset();
+      form.reset({
+        description: "",
+        totalAmount: 0,
+        paidBy: "",
+        category: "general",
+        shares: [],
+      });
       setSelectedIds([]);
       setSplitType("equal");
+      setPercentages({});
+      const defaultRatios: Record<string, number> = {};
+      members.forEach((m) => {
+        defaultRatios[m.id] = 1;
+      });
+      setSharesRatio(defaultRatios);
     }
-  }, [open]);
+  }, [open, mode, expense, members, form]);
+
+  /* ---------------- sync shares with split mode ---------------- */
+
+  useEffect(() => {
+    if (splitType === "equal") {
+      form.setValue("shares", equalSplit(totalAmount, selectedIds));
+    } else if (splitType === "percentage") {
+      form.setValue(
+        "shares",
+        calculatePercentageSplit(totalAmount, members, percentages)
+      );
+    } else if (splitType === "shares") {
+      form.setValue(
+        "shares",
+        calculateSharesSplit(totalAmount, members, sharesRatio)
+      );
+    }
+  }, [
+    splitType,
+    totalAmount,
+    selectedIds,
+    percentages,
+    sharesRatio,
+    members,
+    form,
+  ]);
 
   /* ---------------- equal split handler ---------------- */
 
@@ -146,16 +316,56 @@ export function ExpenseDialog({
     [shares]
   );
 
+  const totalPercentage = useMemo(() => {
+    return members.reduce((sum, m) => sum + (percentages[m.id] || 0), 0);
+  }, [members, percentages]);
+
+  const totalSharesCount = useMemo(() => {
+    return members.reduce((sum, m) => sum + (sharesRatio[m.id] ?? 1), 0);
+  }, [members, sharesRatio]);
+
   /* ---------------- submit ---------------- */
 
   const onSubmit = async (data: ExpenseInsertSchema) => {
+    let finalShares = data.shares;
+    if (splitType === "equal") {
+      finalShares = equalSplit(data.totalAmount, selectedIds);
+    } else if (splitType === "percentage") {
+      finalShares = calculatePercentageSplit(
+        data.totalAmount,
+        members,
+        percentages
+      );
+    } else if (splitType === "shares") {
+      finalShares = calculateSharesSplit(
+        data.totalAmount,
+        members,
+        sharesRatio
+      );
+    }
+
+    const payload = {
+      ...data,
+      shares: finalShares,
+      category: data.category || "general",
+    };
+
     if (mode === "add") {
-      await createExpense(groupId, data);
+      await createExpense(groupId, payload);
     } else {
-      await updateExpense(groupId, expense!.id, data);
+      await updateExpense(groupId, expense!.id, payload);
     }
     setOpen(false);
   };
+
+  /* ---------------- validation for submit button ---------------- */
+
+  const isSubmitDisabled =
+    isLoading ||
+    (splitType === "equal" && selectedIds.length === 0) ||
+    (splitType === "unequal" && Math.abs(unequalTotal - totalAmount) > 0.01) ||
+    (splitType === "percentage" && Math.abs(totalPercentage - 100) > 0.01) ||
+    (splitType === "shares" && totalSharesCount <= 0);
 
   /* ---------------- render ---------------- */
 
@@ -169,10 +379,13 @@ export function ExpenseDialog({
             description: "",
             totalAmount: 0,
             paidBy: "",
+            category: "general",
             shares: [],
           });
           setSelectedIds([]);
           setSplitType("equal");
+          setPercentages({});
+          setSharesRatio({});
         }
       }}
     >
@@ -198,10 +411,7 @@ export function ExpenseDialog({
               valueAsNumber: true,
               onChange: (e) => {
                 const v = e.target.value;
-                form.setValue(
-                  "totalAmount",
-                  v === "" ? 0 : Number(v)
-                );
+                form.setValue("totalAmount", v === "" ? 0 : Number(v));
               },
             })}
           />
@@ -210,7 +420,7 @@ export function ExpenseDialog({
             value={form.watch("paidBy")}
             onValueChange={(v) => form.setValue("paidBy", v)}
           >
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Paid by" />
             </SelectTrigger>
             <SelectContent>
@@ -222,15 +432,40 @@ export function ExpenseDialog({
             </SelectContent>
           </Select>
 
+          {/* ---------- Category Selector ---------- */}
+          <Select
+            value={form.watch("category") || "general"}
+            onValueChange={(v) => form.setValue("category", v)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select Category" />
+            </SelectTrigger>
+            <SelectContent>
+              {CATEGORIES.map((cat) => {
+                const Icon = CATEGORY_ICONS[cat] || Receipt;
+                return (
+                  <SelectItem key={cat} value={cat}>
+                    <div className="flex items-center gap-2">
+                      <Icon className="h-4 w-4" />
+                      <span>{CATEGORY_LABELS[cat] || cat}</span>
+                    </div>
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+
           {/* ---------- Split Tabs ---------- */}
 
           <Tabs
             value={splitType}
             onValueChange={(v) => setSplitType(v as SplitType)}
           >
-            <TabsList className="grid grid-cols-2">
+            <TabsList className="grid grid-cols-4">
               <TabsTrigger value="equal">Equal</TabsTrigger>
               <TabsTrigger value="unequal">Unequal</TabsTrigger>
+              <TabsTrigger value="percentage">By %</TabsTrigger>
+              <TabsTrigger value="shares">By Shares</TabsTrigger>
             </TabsList>
 
             <TabsContent value="equal" className="space-y-2">
@@ -242,7 +477,9 @@ export function ExpenseDialog({
                       toggleEqualMember(m.id, c as boolean)
                     }
                   />
-                  <span>{m.name} {`(${m.email})`}</span>
+                  <span>
+                    {m.name} {`(${m.email})`}
+                  </span>
                 </div>
               ))}
             </TabsContent>
@@ -258,10 +495,13 @@ export function ExpenseDialog({
                     <span>{m.name}</span>
                     <Input
                       type="number"
+                      step="0.01"
+                      min={0}
                       className="w-24"
                       value={share?.shareAmount ?? ""}
+                      placeholder="0.00"
                       onChange={(e) =>
-                        updateUnequal(m.id, e.target.valueAsNumber)
+                        updateUnequal(m.id, e.target.valueAsNumber || 0)
                       }
                     />
                   </div>
@@ -271,25 +511,104 @@ export function ExpenseDialog({
               <div
                 className={
                   Math.abs(unequalTotal - totalAmount) > 0.01
-                    ? "text-red-500"
-                    : "text-green-500"
+                    ? "text-red-500 font-medium"
+                    : "text-green-500 font-medium"
                 }
               >
                 Total: {unequalTotal.toFixed(2)} / {totalAmount}
               </div>
             </TabsContent>
+
+            <TabsContent value="percentage" className="space-y-2">
+              {members.map((m) => {
+                const p = percentages[m.id];
+                return (
+                  <div
+                    key={m.id}
+                    className="flex items-center justify-between gap-2"
+                  >
+                    <span>{m.name}</span>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="any"
+                        min={0}
+                        max={100}
+                        className="w-24"
+                        value={p !== undefined && p !== null ? p : ""}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const val =
+                            e.target.value === "" ? 0 : Number(e.target.value);
+                          setPercentages((prev) => ({
+                            ...prev,
+                            [m.id]: val,
+                          }));
+                        }}
+                      />
+                      <span className="text-muted-foreground w-4">%</span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <div
+                className={
+                  Math.abs(totalPercentage - 100) > 0.01
+                    ? "text-red-500 font-medium"
+                    : "text-green-500 font-medium"
+                }
+              >
+                Total: {totalPercentage.toFixed(2)}% / 100%
+              </div>
+            </TabsContent>
+
+            <TabsContent value="shares" className="space-y-2">
+              {members.map((m) => {
+                const r = sharesRatio[m.id];
+                return (
+                  <div
+                    key={m.id}
+                    className="flex items-center justify-between gap-2"
+                  >
+                    <span>{m.name}</span>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        inputMode="numeric"
+                        step="1"
+                        min={0}
+                        className="w-24"
+                        value={r !== undefined && r !== null ? r : 1}
+                        placeholder="1"
+                        onChange={(e) => {
+                          const val =
+                            e.target.value === ""
+                              ? 0
+                              : Math.max(0, parseInt(e.target.value, 10) || 0);
+                          setSharesRatio((prev) => ({
+                            ...prev,
+                            [m.id]: val,
+                          }));
+                        }}
+                      />
+                      <span className="text-muted-foreground text-xs w-12">
+                        share(s)
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <div className="text-muted-foreground text-sm font-medium">
+                Total Shares: {totalSharesCount}
+              </div>
+            </TabsContent>
           </Tabs>
 
           <DialogFooter>
-            <Button
-              type="submit"
-              disabled={
-                (splitType === "equal" && selectedIds.length === 0) ||
-                (splitType === "unequal" &&
-                  Math.abs(unequalTotal - totalAmount) > 0.01) ||
-                isLoading
-              }
-            >
+            <Button type="submit" disabled={isSubmitDisabled}>
               {isLoading
                 ? "Saving..."
                 : mode === "add"
