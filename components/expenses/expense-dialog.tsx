@@ -25,6 +25,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { formatMoney } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -45,7 +47,26 @@ import {
   Camera,
   Sparkles,
   Loader2,
+  ScanText,
+  X,
+  ChevronDown,
+  ChevronUp,
+  FileText,
 } from "lucide-react";
+
+export interface ScannedReceiptData {
+  merchant?: string;
+  description?: string;
+  totalAmount?: number;
+  category?: string;
+  date?: string;
+  lineItems?: Array<{ name: string; price: number; quantity: number }>;
+  tax?: number;
+  confidence?: number;
+  rawText?: string;
+  engine?: "ai-vision" | "tesseract-ocr" | "heuristic";
+  fileName?: string;
+}
 
 export type SplitType = "equal" | "unequal" | "percentage" | "shares";
 
@@ -203,7 +224,30 @@ export function ExpenseDialog({
   const [percentages, setPercentages] = useState<Record<string, number>>({});
   const [sharesRatio, setSharesRatio] = useState<Record<string, number>>({});
   const [isScanning, setIsScanning] = useState(false);
+  const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null);
+  const [scannedData, setScannedData] = useState<ScannedReceiptData | null>(null);
+  const [showRawText, setShowRawText] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const clearReceipt = () => {
+    if (receiptPreviewUrl) {
+      URL.revokeObjectURL(receiptPreviewUrl);
+    }
+    setReceiptPreviewUrl(null);
+    setScannedData(null);
+    setShowRawText(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (receiptPreviewUrl) {
+        URL.revokeObjectURL(receiptPreviewUrl);
+      }
+    };
+  }, [receiptPreviewUrl]);
 
   /* ---------------- form ---------------- */
 
@@ -227,6 +271,12 @@ export function ExpenseDialog({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (receiptPreviewUrl) {
+      URL.revokeObjectURL(receiptPreviewUrl);
+    }
+    const previewUrl = URL.createObjectURL(file);
+    setReceiptPreviewUrl(previewUrl);
+
     setIsScanning(true);
     try {
       const formData = new FormData();
@@ -236,10 +286,14 @@ export function ExpenseDialog({
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      const parsed = res.data?.data || res.data?.receipt || res.data;
+      const parsed: ScannedReceiptData =
+        res.data?.data || res.data?.receipt || res.data;
       if (parsed) {
+        parsed.fileName = file.name;
+        setScannedData(parsed);
+
         if (parsed.description || parsed.merchant) {
-          form.setValue("description", parsed.description || parsed.merchant, {
+          form.setValue("description", parsed.description || parsed.merchant || "", {
             shouldValidate: true,
           });
         }
@@ -279,7 +333,13 @@ export function ExpenseDialog({
           form.setValue("category", parsed.category);
         }
 
-        toast.success("Receipt scanned successfully!");
+        const engineLabel =
+          parsed.engine === "ai-vision"
+            ? "Gemini Vision AI"
+            : parsed.engine === "tesseract-ocr"
+            ? "Tesseract OCR"
+            : "OCR";
+        toast.success(`Receipt scanned via ${engineLabel}! Details filled.`);
       }
     } catch (err: any) {
       console.error("Receipt scan error:", err);
@@ -456,6 +516,7 @@ export function ExpenseDialog({
       onOpenChange={(next) => {
         setOpen(next);
         if (!next) {
+          clearReceipt();
           form.reset({
             description: "",
             totalAmount: 0,
@@ -498,7 +559,7 @@ export function ExpenseDialog({
                   {isScanning ? (
                     <>
                       <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                      <span>Scanning receipt with AI...</span>
+                      <span>Scanning receipt...</span>
                     </>
                   ) : (
                     <>
@@ -514,9 +575,142 @@ export function ExpenseDialog({
         </DialogHeader>
 
         {isScanning && (
-          <div className="flex items-center gap-2 p-3 text-xs rounded-lg bg-primary/10 text-primary border border-primary/20 animate-pulse">
+          <div className="flex items-center gap-2.5 p-3 text-xs rounded-lg bg-primary/10 text-primary border border-primary/20 animate-pulse">
             <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-            <span>Scanning receipt with AI... extracting merchant, amount, category & split.</span>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold">Processing receipt with OCR engine...</p>
+              <p className="text-[11px] text-primary/80">
+                Extracting merchant, total amount, category & line items from image
+              </p>
+            </div>
+          </div>
+        )}
+
+        {scannedData && !isScanning && (
+          <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2.5 text-xs">
+            <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-2">
+              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                <Badge
+                  variant="secondary"
+                  className="text-[11px] gap-1 px-2 py-0.5 font-medium bg-primary/10 text-primary border-primary/20"
+                >
+                  <ScanText className="h-3 w-3" />
+                  {scannedData.engine === "ai-vision"
+                    ? "Gemini Vision AI"
+                    : scannedData.engine === "tesseract-ocr"
+                    ? "Tesseract OCR (Local)"
+                    : "Smart OCR"}
+                </Badge>
+                {scannedData.confidence !== undefined && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] text-muted-foreground px-1.5 py-0"
+                  >
+                    {Math.round(scannedData.confidence * 100)}% match
+                  </Badge>
+                )}
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-foreground shrink-0"
+                onClick={clearReceipt}
+                title="Remove scanned receipt"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+
+            <div className="flex items-start gap-3">
+              {receiptPreviewUrl && (
+                <a
+                  href={receiptPreviewUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group relative shrink-0 block overflow-hidden rounded-md border border-border bg-background"
+                  title="Click to view full receipt image"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={receiptPreviewUrl}
+                    alt="Receipt preview"
+                    className="h-16 w-16 object-cover transition-transform group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-[10px] text-white font-medium">
+                    View
+                  </div>
+                </a>
+              )}
+
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-semibold text-foreground truncate text-sm">
+                    {scannedData.merchant || "Scanned Receipt"}
+                  </p>
+                  <span className="font-bold text-primary text-sm whitespace-nowrap">
+                    {formatMoney(
+                      Math.round((scannedData.totalAmount || 0) * 100)
+                    )}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground text-[11px] flex-wrap">
+                  <span>
+                    Category:{" "}
+                    <strong className="text-foreground capitalize">
+                      {scannedData.category}
+                    </strong>
+                  </span>
+                  {scannedData.date && <span>• {scannedData.date}</span>}
+                  {scannedData.tax !== undefined && (
+                    <span>
+                      • Tax:{" "}
+                      {formatMoney(Math.round(scannedData.tax * 100))}
+                    </span>
+                  )}
+                </div>
+                {scannedData.lineItems && scannedData.lineItems.length > 0 && (
+                  <p className="text-[11px] text-muted-foreground truncate">
+                    {scannedData.lineItems.length} line{" "}
+                    {scannedData.lineItems.length === 1 ? "item" : "items"}:{" "}
+                    <span className="text-foreground">
+                      {scannedData.lineItems
+                        .map(
+                          (item) =>
+                            `${item.name} (${formatMoney(
+                              Math.round(item.price * 100)
+                            )})`
+                        )
+                        .join(", ")}
+                    </span>
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {scannedData.rawText && (
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowRawText(!showRawText)}
+                  className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground font-medium select-none"
+                >
+                  {showRawText ? (
+                    <ChevronUp className="h-3 w-3" />
+                  ) : (
+                    <ChevronDown className="h-3 w-3" />
+                  )}
+                  {showRawText
+                    ? "Hide Extracted OCR Text"
+                    : "View Extracted OCR Text"}
+                </button>
+                {showRawText && (
+                  <pre className="mt-1.5 p-2 rounded bg-background border border-border text-[10px] font-mono text-muted-foreground max-h-32 overflow-y-auto whitespace-pre-wrap select-all">
+                    {scannedData.rawText}
+                  </pre>
+                )}
+              </div>
+            )}
           </div>
         )}
 
