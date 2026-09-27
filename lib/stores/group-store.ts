@@ -48,6 +48,15 @@ export type BalanceItem = {
   amount: number;
   currency: string;
 };
+
+export type SuggestedSettlement = {
+  other_user_id: string;
+  other_user_name: string;
+  other_user_image: string | null;
+  amount: number;
+  type: "PAYABLE" | "RECEIVABLE";
+};
+
 interface GroupState {
   groups: Group[];
   expenses: Record<number, {
@@ -58,6 +67,8 @@ interface GroupState {
   }>;
   members: Record<number, Member[]>;
   balances: BalanceItem[];
+  suggestedSettlements: Record<number, SuggestedSettlement[]>;
+  error: string | null;
 
   // Loading States
   isFetchingGroups: boolean;
@@ -70,8 +81,19 @@ interface GroupState {
   isRemovingMember: boolean;
   isFetchingBalances: boolean;
   isFetchingMoreExpenses: boolean;
+  isFetchingSettlements: boolean;
+  isSettlingDebt: boolean;
 
   fetchBalances: (groupId: number) => Promise<void>;
+  fetchSuggestedSettlements: (groupId: number) => Promise<void>;
+  settleDebt: (
+    groupId: number,
+    settlementData: {
+      fromUserId: string;
+      toUserId: string;
+      amount: number;
+    }
+  ) => Promise<void>;
   fetchGroups: () => Promise<void>;
   fetchGroupData: (groupId: number, force?: boolean) => Promise<void>;
   prefetchGroupData: (groupId: number) => Promise<void>;
@@ -135,6 +157,8 @@ export const useGroupStore = create<GroupState>((set, get) => ({
   expenses: {},
   members: {},
   balances: [],
+  suggestedSettlements: {},
+  error: null,
 
   isFetchingGroups: false,
   isFetchingGroupData: false,
@@ -146,6 +170,8 @@ export const useGroupStore = create<GroupState>((set, get) => ({
   isRemovingMember: false,
   isFetchingBalances: false,
   isFetchingMoreExpenses: false,
+  isFetchingSettlements: false,
+  isSettlingDebt: false,
   /* ---------- groups ---------- */
   fetchBalances: async (groupId: number) => {
     set({ isFetchingBalances: true });
@@ -161,6 +187,70 @@ export const useGroupStore = create<GroupState>((set, get) => ({
       set({ isFetchingBalances: false });
     }
   },
+
+  fetchSuggestedSettlements: async (groupId: number) => {
+    set({ isFetchingSettlements: true, error: null });
+    try {
+      const { data } = await api.get(`/api/groups/${groupId}/debts`);
+      set((state) => ({
+        suggestedSettlements: {
+          ...state.suggestedSettlements,
+          [groupId]: data.debts,
+        },
+      }));
+    } catch (error: any) {
+      console.error("Failed to fetch suggested settlements:", error);
+      set({ error: error?.message || "Failed to fetch settlements" });
+    } finally {
+      set({ isFetchingSettlements: false });
+    }
+  },
+
+  settleDebt: async (groupId, settlementData) => {
+    const previousSettlements = get().suggestedSettlements[groupId] || [];
+    set((state) => ({
+      isSettlingDebt: true,
+      error: null,
+      suggestedSettlements: {
+        ...state.suggestedSettlements,
+        [groupId]: (state.suggestedSettlements[groupId] || []).filter(
+          (s) =>
+            s.other_user_id !== settlementData.toUserId &&
+            s.other_user_id !== settlementData.fromUserId
+        ),
+      },
+    }));
+
+    try {
+      await api.post(`/api/groups/${groupId}/settlements`, settlementData, {
+        headers: {
+          "Idempotency-Key": uuidv4(),
+        },
+      });
+      toast.success("Settlement recorded successfully");
+      await Promise.all([
+        get().fetchSuggestedSettlements(groupId),
+        get().fetchBalances(groupId),
+      ]);
+    } catch (error: any) {
+      // Rollback on failure
+      set((state) => ({
+        suggestedSettlements: {
+          ...state.suggestedSettlements,
+          [groupId]: previousSettlements,
+        },
+      }));
+      console.error("Failed to record settlement:", error);
+      const errorMessage =
+        error?.response?.data?.error || "Failed to record settlement";
+      toast.error(errorMessage);
+      set({ error: errorMessage });
+      throw error;
+    } finally {
+      set({ isSettlingDebt: false });
+    }
+  },
+
   toggleSimplifiyDebts: async (groupId: number) => {
     set({ isTogglingSimplifyDebts: true });
     try {
@@ -173,6 +263,10 @@ export const useGroupStore = create<GroupState>((set, get) => ({
           ),
         }));
       }
+      await Promise.all([
+        get().fetchBalances(groupId),
+        get().fetchSuggestedSettlements(groupId),
+      ]);
     } catch (error) {
       toast.error("Error while toggling simplify debts")
     } finally {
@@ -442,7 +536,10 @@ export const useGroupStore = create<GroupState>((set, get) => ({
           },
         };
       });
-      await get().fetchBalances(groupId);
+      await Promise.all([
+        get().fetchBalances(groupId),
+        get().fetchSuggestedSettlements(groupId),
+      ]);
     } finally {
       set({ isCreatingExpense: false });
     }
@@ -471,7 +568,10 @@ export const useGroupStore = create<GroupState>((set, get) => ({
           },
         };
       });
-      await get().fetchBalances(groupId);
+      await Promise.all([
+        get().fetchBalances(groupId),
+        get().fetchSuggestedSettlements(groupId),
+      ]);
     } finally {
       set({ isUpdatingExpense: false });
     }
@@ -497,7 +597,10 @@ export const useGroupStore = create<GroupState>((set, get) => ({
           },
         };
       });
-      await get().fetchBalances(groupId);
+      await Promise.all([
+        get().fetchBalances(groupId),
+        get().fetchSuggestedSettlements(groupId),
+      ]);
       toast.success("Expense deleted successfully");
     } catch (error: any) {
       toast.error(error?.response?.data?.error ?? "Failed to delete expense");
@@ -541,7 +644,10 @@ export const useGroupStore = create<GroupState>((set, get) => ({
         },
       }));
       toast.success(data?.message || "Member removed successfully");
-      await get().fetchBalances(groupId);
+      await Promise.all([
+        get().fetchBalances(groupId),
+        get().fetchSuggestedSettlements(groupId),
+      ]);
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? "Failed to remove member";
       toast.error(msg);

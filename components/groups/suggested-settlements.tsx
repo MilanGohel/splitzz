@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from "react";
 import {
-  useSettlementStore,
+  useGroupStore,
   SuggestedSettlement,
-} from "@/lib/stores/settlement-store";
-import { useGroupStore } from "@/lib/stores/group-store";
+} from "@/lib/stores/group-store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -23,8 +22,8 @@ export function SuggestedSettlements({ groupId }: SuggestedSettlementsProps) {
     fetchSuggestedSettlements,
     isFetchingSettlements,
     error,
-  } = useSettlementStore();
-  const groups = useGroupStore((state) => state.groups);
+    groups,
+  } = useGroupStore();
   const group = groups.find((g) => g.id === groupId);
   const groupName = group?.name || "our group";
 

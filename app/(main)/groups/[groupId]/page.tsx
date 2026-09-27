@@ -20,7 +20,6 @@ import {
 } from "lucide-react";
 import { useGroupStore } from "@/lib/stores/group-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { useSettlementStore } from "@/lib/stores/settlement-store";
 import { Button } from "@/components/ui/button";
 import GroupBalancesPage from "@/components/groups/group-balances-page";
 import { SuggestedSettlements } from "@/components/groups/suggested-settlements";
@@ -50,7 +49,6 @@ export default function GroupPage({
   } = useGroupStore();
 
   const currentUser = useAuthStore((s) => s.user);
-  const { fetchSuggestedSettlements } = useSettlementStore();
   const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
@@ -64,7 +62,6 @@ export default function GroupPage({
   const handleSimplifyDebtsChange = async () => {
     if (!group?.id) return;
     await toggleSimplifiyDebts(group.id);
-    await fetchSuggestedSettlements(group.id);
   };
 
   const handleExportCSV = async () => {

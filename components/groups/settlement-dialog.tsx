@@ -14,8 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   SuggestedSettlement,
-  useSettlementStore,
-} from "@/lib/stores/settlement-store";
+  useGroupStore,
+} from "@/lib/stores/group-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import {
   Loader2,
@@ -47,7 +47,7 @@ export function SettlementDialog({
   const [copiedLink, setCopiedLink] = useState(false);
   const [showQr, setShowQr] = useState(true);
 
-  const { settleDebt, isSettlingDebt } = useSettlementStore();
+  const { settleDebt, isSettlingDebt } = useGroupStore();
   const user = useAuthStore((state) => state.user);
 
   const isPayable = settlement.type === "PAYABLE";
