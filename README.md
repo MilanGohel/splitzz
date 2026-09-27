@@ -11,7 +11,15 @@ Splitzz is a modern, full-stack expense sharing application built for roommates,
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle-ORM-green?logo=drizzle)](https://orm.drizzle.team/)
 [![PostgreSQL](https://img.shields.io/badge/Neon-PostgreSQL-336791?logo=postgresql)](https://neon.tech/)
 [![Tailwind CSS v4](https://img.shields.io/badge/Tailwind-CSS_v4-38B2AC?logo=tailwind-css)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Jest-120%20passed-brightgreen?logo=jest)](https://jestjs.io/)
+[![Tests](https://img.shields.io/badge/Jest-151%20passed-brightgreen?logo=jest)](https://jestjs.io/)
+
+<br />
+<br />
+
+<img src="public/images/landing-page.png" alt="Splitzz Landing Page" width="100%" />
+
+<br />
+<br />
 
 [Features](#-feature-showcase) • [Tech Stack](#-tech-stack) • [Database Architecture](#-database-architecture) • [Getting Started](#-getting-started) • [API Documentation](#-api-documentation) • [Testing](#-testing)
 
