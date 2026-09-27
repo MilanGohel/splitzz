@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Splitzz",
-  description: "Share expenses with friends and family",
+  title: "Splitzz — Smart Expense Sharing & Debt Simplification",
+  description: "Track shared expenses, split bills fairly, and settle debts effortlessly with friends, roommates, and travel groups.",
 };
 
 export default function RootLayout({

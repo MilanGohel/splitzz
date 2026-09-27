@@ -4,6 +4,7 @@ import { Users, Receipt, TrendingUp } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { memo } from "react";
+import { SplitzzLogo } from "@/components/brand/logo";
 
 export default function Home() {
   return (
@@ -11,7 +12,7 @@ export default function Home() {
       {/* Header/Nav */}
       <header className="border-b border-border relative z-50">
         <nav className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="text-2xl font-bold text-primary">Splitzz</div>
+          <SplitzzLogo size="md" href="/" />
           <div className="hidden md:flex items-center gap-8">
             <a
               href="#features"
@@ -62,6 +63,10 @@ const HeroSection = memo(function HeroSection() {
       <div className="flex flex-col items-center">
         {/* Hero Text & CTA */}
         <div className="text-center max-w-4xl mb-12">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold mb-6 tracking-wide">
+            <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            The Modern Group Expense Ledger
+          </div>
           <h1 className="text-4xl lg:text-6xl font-bold text-foreground mb-6 text-balance leading-tight">
             <span>Split Costs,</span>
             <span className="text-primary"> Simplify Debts</span>
@@ -200,11 +205,9 @@ const FooterSection = memo(function FooterSection() {
       <div className="container mx-auto px-6 py-12">
         <div className="grid md:grid-cols-4 gap-8">
           <div>
-            <div className="text-2xl font-bold text-primary mb-4">
-              Splitzz
-            </div>
+            <SplitzzLogo size="md" className="mb-4" />
             <p className="text-muted-foreground text-sm leading-relaxed">
-              Making shared expenses simple and stress-free.
+              Making shared expenses simple, transparent, and stress-free.
             </p>
           </div>
           <div>

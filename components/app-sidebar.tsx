@@ -30,6 +30,7 @@ import {
   SidebarRail,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
+import { SplitzzMark } from "@/components/brand/logo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -85,16 +86,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <Link href="/dashboard">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <CreditCard className="size-4 text-primary-foreground" />
-                </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold text-primary">
-                    Splitzz
+              <Link href="/dashboard" className="flex items-center gap-2.5">
+                <SplitzzMark size={28} glow />
+                <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
+                  <span className="truncate font-bold text-foreground">
+                    Split<span className="text-emerald-500 font-extrabold">zz</span>
                   </span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    Finance App
+                  <span className="truncate text-xs text-muted-foreground font-medium">
+                    Expense Sharing
                   </span>
                 </div>
               </Link>

@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { SplitzzMark } from "@/components/brand/logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -57,12 +58,13 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md border-border bg-card text-card-foreground">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-primary">
-            Welcome to Splitzz
+        <CardHeader className="text-center flex flex-col items-center">
+          <SplitzzMark size={48} className="mb-2" glow />
+          <CardTitle className="text-2xl font-bold tracking-tight">
+            Welcome to Split<span className="text-emerald-500 font-extrabold">zz</span>
           </CardTitle>
           <CardDescription className="text-muted-foreground">
-            Sign in to manage your shared expenses
+            Sign in to manage and settle your shared expenses
           </CardDescription>
         </CardHeader>
         <CardContent>
