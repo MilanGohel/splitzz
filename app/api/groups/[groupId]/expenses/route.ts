@@ -10,9 +10,7 @@ import {
 import { expenseInsertSchema } from "@/lib/zod/expense";
 import { eq, desc, inArray, and, sql } from "drizzle-orm";
 import z from "zod";
-import { isGroupMember } from "@/lib/helpers/checks";
-import { auth } from "@/utils/auth";
-import { headers } from "next/headers";
+import { resolveGroupScope } from "@/lib/auth/scope";
 import { ACTIVITY_TYPES } from "@/lib/zod/activity";
 
 export async function GET(
@@ -21,22 +19,9 @@ export async function GET(
 ) {
   try {
     const { groupId } = await params;
-    const groupIdInt = parseInt(groupId);
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-    if (!session?.user.id) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    if (!(await isGroupMember(session.user.id, groupIdInt))) {
-      return Response.json(
-        {
-          error: "You are not a member of this group. You can't view expenses.",
-        },
-        { status: 403 }
-      );
-    }
+    const scope = await resolveGroupScope(request, groupId);
+    if (!scope.ok) return scope.response;
+    const groupIdInt = scope.group.id;
 
     const url = new URL(request.url);
     const limit = parseInt(url.searchParams.get("limit") || "20");
@@ -79,25 +64,12 @@ export async function POST(
   { params }: { params: Promise<{ groupId: string }> }
 ) {
   const { groupId } = await params;
-  const groupIdInt = parseInt(groupId);
+  const scope = await resolveGroupScope(request, groupId);
+  if (!scope.ok) return scope.response;
+  const groupIdInt = scope.group.id;
   const idempotencyKeyHeader = request.headers.get("Idempotency-Key");
 
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-    if (!session?.user?.id) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    if (!(await isGroupMember(session.user.id, groupIdInt))) {
-      return Response.json(
-        {
-          error: "You are not a member of this group. You can't add expenses.",
-        },
-        { status: 403 }
-      );
-    }
 
     if (idempotencyKeyHeader) {
       const existingKey = await db.query.idempotencyKey.findFirst({
@@ -177,21 +149,8 @@ export async function POST(
       );
     }
 
-    const [groupData] = await db
-      .select()
-      .from(group)
-      .where(eq(group.id, groupIdInt))
-      .limit(1);
-
-    if (!groupData) {
-      return Response.json(
-        { error: `Group with ID ${groupIdInt} not found.` },
-        { status: 404 }
-      );
-    }
-
-    const isPayer = paidBy === session.user.id;
-    const isOwner = groupData.ownerId === session.user.id;
+    const isPayer = paidBy === scope.user.id;
+    const isOwner = scope.role === "owner";
 
     if (!isPayer && !isOwner) {
       return Response.json(

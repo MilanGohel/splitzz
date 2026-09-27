@@ -1,23 +1,12 @@
 import { db, group, expense, groupMember } from "@/db/schema";
 import { eq, getTableColumns, sql, desc } from "drizzle-orm";
-import { isGroupMember } from "@/lib/helpers/checks";
-import { auth } from "@/utils/auth";
-import { headers } from "next/headers";
+import { resolveGroupScope } from "@/lib/auth/scope";
 
 export async function GET(request: Request, { params }: { params: Promise<{ groupId: string }> }) {
     const { groupId } = await params;
-    const groupIdInt = parseInt(groupId);
-    const session = await auth.api.getSession({
-        headers: await headers()
-    });
-
-    if (!session?.user.id) {
-        return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    if (!await isGroupMember(session.user.id, groupIdInt)) {
-        return Response.json({ error: "You are not a member of this group." }, { status: 403 });
-    }
+    const scope = await resolveGroupScope(request, groupId);
+    if (!scope.ok) return scope.response;
+    const groupIdInt = scope.group.id;
 
     const url = new URL(request.url);
     const isFull = url.searchParams.get("full") === "true";

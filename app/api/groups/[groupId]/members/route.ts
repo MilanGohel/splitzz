@@ -1,8 +1,6 @@
 import { activity, db, groupMember } from "@/db/schema";
-import { isGroupMember } from "@/lib/helpers/checks";
+import { resolveGroupScope } from "@/lib/auth/scope";
 import { ACTIVITY_TYPES } from "@/lib/zod/activity";
-import { auth } from "@/utils/auth";
-import { headers } from "next/headers";
 
 export async function GET(
   request: Request,
@@ -10,33 +8,9 @@ export async function GET(
 ) {
   try {
     const { groupId } = await params;
-    const groupIdInt = parseInt(groupId);
-
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user.id) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const groupFound = await db.query.group.findFirst({
-      where: (g, { eq }) => eq(g.id, groupIdInt),
-    });
-
-    if (!groupFound) {
-      return Response.json({ error: "Group not found" }, { status: 404 });
-    }
-
-    if (!(await isGroupMember(session.user.id, groupIdInt))) {
-      return Response.json(
-        {
-          error:
-            "You are not a member of this group. You can't see members of this group.",
-        },
-        { status: 401 }
-      );
-    }
+    const scope = await resolveGroupScope(request, groupId);
+    if (!scope.ok) return scope.response;
+    const groupIdInt = scope.group.id;
 
     const result = await db.query.groupMember.findMany({
       where: (gm, { eq }) => eq(gm.groupId, groupIdInt),
@@ -46,12 +20,14 @@ export async function GET(
     });
 
     return Response.json({
-      members: result.map((r) => ({
-        id: r.user.id,
-        name: r.user.name,
-        email: r.user.email,
-        image: r.user.image,
-      })),
+      members: result
+        .filter((r) => Boolean(r.user))
+        .map((r) => ({
+          id: r.user.id,
+          name: r.user.name,
+          email: r.user.email,
+          image: r.user.image,
+        })),
     });
   } catch (error) {
     console.error("Error fetching members:", error);
@@ -65,30 +41,9 @@ export async function POST(
 ) {
   try {
     const { groupId } = await params;
-    const groupIdInt = parseInt(groupId);
-
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-    if (!session?.user.id) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const groupFound = await db.query.group.findFirst({
-      where: (g, { eq }) => eq(g.id, groupIdInt),
-    });
-    if (!groupFound) {
-      return Response.json({ error: "Group not found" }, { status: 404 });
-    }
-
-    if (!(await isGroupMember(session.user.id, groupIdInt))) {
-      return Response.json(
-        {
-          error: "You are not a member of this group. You can't add new user.",
-        },
-        { status: 401 }
-      );
-    }
+    const scope = await resolveGroupScope(request, groupId);
+    if (!scope.ok) return scope.response;
+    const groupIdInt = scope.group.id;
 
     const body = await request.json();
     let { userId, email } = body;
@@ -127,7 +82,7 @@ export async function POST(
       );
     }
 
-    const result = await db
+    await db
       .insert(groupMember)
       .values({
         groupId: groupIdInt,
@@ -138,7 +93,7 @@ export async function POST(
     await db.insert(activity).values({
       type: ACTIVITY_TYPES.GROUP_JOIN,
       groupId: groupIdInt,
-      userId: session.user.id,
+      userId: scope.user.id,
       metadata: {
         userId,
         name: userFound?.name,
@@ -157,7 +112,7 @@ export async function POST(
       { status: 201 }
     );
   } catch (error) {
-    console.error("Error fetching members:", error);
+    console.error("Error adding member:", error);
     return Response.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

@@ -7,6 +7,8 @@
  * - DELETE /api/groups/[groupId]/members/[memberId]
  */
 
+import { NextResponse } from 'next/server';
+
 // Mock database BEFORE imports
 jest.mock('@/db/schema', () => {
     const mockDb = {
@@ -34,81 +36,84 @@ jest.mock('@/db/schema', () => {
     };
 });
 
-jest.mock('@/utils/auth', () => ({
-    auth: { api: { getSession: jest.fn() } },
-}));
-
-jest.mock('next/headers', () => ({
-    headers: jest.fn().mockResolvedValue(new Headers()),
-}));
-
-jest.mock('@/lib/helpers/checks', () => ({
+jest.mock('@/lib/auth/scope', () => ({
+    resolveGroupScope: jest.fn(),
     isGroupMember: jest.fn(),
 }));
 
-jest.mock('@/lib/helpers/queries', () => ({
-    getUserDebts: jest.fn(),
+jest.mock('@/lib/ledger', () => ({
+    getGroupDebts: jest.fn(),
 }));
 
 import { GET, POST } from '@/app/api/groups/[groupId]/members/route';
 import { DELETE } from '@/app/api/groups/[groupId]/members/[memberId]/route';
-import { auth } from '@/utils/auth';
 import { db } from '@/db/schema';
-import { isGroupMember } from '@/lib/helpers/checks';
-import { getUserDebts } from '@/lib/helpers/queries';
+import { resolveGroupScope, isGroupMember } from '@/lib/auth/scope';
+import { getGroupDebts } from '@/lib/ledger';
 
-const mockGetSession = auth.api.getSession as unknown as jest.Mock;
 const mockDb = db as jest.Mocked<typeof db>;
+const mockResolveGroupScope = resolveGroupScope as jest.Mock;
 const mockIsGroupMember = isGroupMember as jest.Mock;
-const mockGetUserDebts = getUserDebts as jest.Mock;
+const mockGetGroupDebts = getGroupDebts as jest.Mock;
 
 describe('Members API', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        mockResolveGroupScope.mockResolvedValue({
+            ok: true,
+            user: { id: 'user-1', name: 'User 1', email: 'user1@example.com' },
+            group: { id: 1, name: 'Group 1', ownerId: 'owner-1', simplifyDebts: false },
+            role: 'member',
+        });
+        mockIsGroupMember.mockResolvedValue(true);
+        mockGetGroupDebts.mockResolvedValue([]);
     });
 
     describe('GET /api/groups/[groupId]/members', () => {
         it('returns 401 when not authenticated', async () => {
-            mockGetSession.mockResolvedValueOnce(null);
+            mockResolveGroupScope.mockResolvedValueOnce({
+                ok: false,
+                response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+            });
 
             const request = new Request('http://localhost/api/groups/1/members');
-            const response = await GET(request, { params: Promise.resolve({ groupId: 1 }) });
+            const response = await GET(request, { params: Promise.resolve({ groupId: '1' }) });
 
             expect(response.status).toBe(401);
         });
 
         it('returns 404 when group not found', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-1' } });
-            (mockDb.query.group.findFirst as jest.Mock).mockResolvedValueOnce(null);
+            mockResolveGroupScope.mockResolvedValueOnce({
+                ok: false,
+                response: NextResponse.json({ error: 'Group not found' }, { status: 404 }),
+            });
 
             const request = new Request('http://localhost/api/groups/1/members');
-            const response = await GET(request, { params: Promise.resolve({ groupId: 1 }) });
+            const response = await GET(request, { params: Promise.resolve({ groupId: '1' }) });
 
             expect(response.status).toBe(404);
         });
 
-        it('returns 401 when user is not a member', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-1' } });
-            (mockDb.query.group.findFirst as jest.Mock).mockResolvedValueOnce({ id: 1 });
-            mockIsGroupMember.mockResolvedValueOnce(false);
+        it('returns 403 when user is not a member', async () => {
+            mockResolveGroupScope.mockResolvedValueOnce({
+                ok: false,
+                response: NextResponse.json({ error: 'You are not a member of this group' }, { status: 403 }),
+            });
 
             const request = new Request('http://localhost/api/groups/1/members');
-            const response = await GET(request, { params: Promise.resolve({ groupId: 1 }) });
+            const response = await GET(request, { params: Promise.resolve({ groupId: '1' }) });
 
-            expect(response.status).toBe(401);
+            expect(response.status).toBe(403);
         });
 
         it('returns members when authorized', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-1' } });
-            (mockDb.query.group.findFirst as jest.Mock).mockResolvedValueOnce({ id: 1 });
-            mockIsGroupMember.mockResolvedValueOnce(true);
             (mockDb.query.groupMember.findMany as jest.Mock).mockResolvedValueOnce([
-                { userId: 'user-1', user: { name: 'User 1' } },
-                { userId: 'user-2', user: { name: 'User 2' } },
+                { user: { id: 'user-1', name: 'User 1', email: 'user1@example.com' } },
+                { user: { id: 'user-2', name: 'User 2', email: 'user2@example.com' } },
             ]);
 
             const request = new Request('http://localhost/api/groups/1/members');
-            const response = await GET(request, { params: Promise.resolve({ groupId: 1 }) });
+            const response = await GET(request, { params: Promise.resolve({ groupId: '1' }) });
             const data = await response.json();
 
             expect(response.status).toBe(200);
@@ -118,47 +123,52 @@ describe('Members API', () => {
 
     describe('POST /api/groups/[groupId]/members', () => {
         it('returns 401 when not authenticated', async () => {
-            mockGetSession.mockResolvedValueOnce(null);
+            mockResolveGroupScope.mockResolvedValueOnce({
+                ok: false,
+                response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+            });
 
             const request = new Request('http://localhost/api/groups/1/members', {
                 method: 'POST',
                 body: JSON.stringify({ userId: 'user-2' }),
                 headers: { 'Content-Type': 'application/json' },
             });
-            const response = await POST(request, { params: Promise.resolve({ groupId: 1 }) });
+            const response = await POST(request, { params: Promise.resolve({ groupId: '1' }) });
 
             expect(response.status).toBe(401);
         });
 
         it('returns 404 when group not found', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-1' } });
-            (mockDb.query.group.findFirst as jest.Mock).mockResolvedValueOnce(null);
+            mockResolveGroupScope.mockResolvedValueOnce({
+                ok: false,
+                response: NextResponse.json({ error: 'Group not found' }, { status: 404 }),
+            });
 
             const request = new Request('http://localhost/api/groups/1/members', {
                 method: 'POST',
                 body: JSON.stringify({ userId: 'user-2' }),
                 headers: { 'Content-Type': 'application/json' },
             });
-            const response = await POST(request, { params: Promise.resolve({ groupId: 1 }) });
+            const response = await POST(request, { params: Promise.resolve({ groupId: '1' }) });
 
             expect(response.status).toBe(404);
         });
 
         it('adds member successfully', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-1' } });
-            (mockDb.query.group.findFirst as jest.Mock).mockResolvedValueOnce({ id: 1 });
-            mockIsGroupMember.mockResolvedValueOnce(true);
-            (mockDb.query.user.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'user-2', name: 'User 2' });
-            ((mockDb as any).returning as jest.Mock).mockResolvedValueOnce([
-                { groupId: 1, userId: 'user-2' },
-            ]);
+            (mockDb.query.user.findFirst as jest.Mock).mockResolvedValueOnce({
+                id: 'user-2',
+                name: 'User 2',
+                email: 'user2@example.com',
+            });
+            (mockDb.query.groupMember.findFirst as jest.Mock).mockResolvedValueOnce(null);
+            (mockDb.returning as jest.Mock).mockResolvedValueOnce([{ id: 1, groupId: 1, userId: 'user-2' }]);
 
             const request = new Request('http://localhost/api/groups/1/members', {
                 method: 'POST',
-                body: JSON.stringify({ userId: 'user-2' }),
+                body: JSON.stringify({ email: 'user2@example.com' }),
                 headers: { 'Content-Type': 'application/json' },
             });
-            const response = await POST(request, { params: Promise.resolve({ groupId: 1 }) });
+            const response = await POST(request, { params: Promise.resolve({ groupId: '1' }) });
 
             expect(response.status).toBe(201);
         });
@@ -166,92 +176,104 @@ describe('Members API', () => {
 
     describe('DELETE /api/groups/[groupId]/members/[memberId]', () => {
         it('returns 401 when not authenticated', async () => {
-            mockGetSession.mockResolvedValueOnce(null);
+            mockResolveGroupScope.mockResolvedValueOnce({
+                ok: false,
+                response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+            });
 
             const request = new Request('http://localhost/api/groups/1/members/user-2', { method: 'DELETE' });
             const response = await DELETE(request, {
-                params: Promise.resolve({ groupId: '1', memberId: 'user-2' })
+                params: Promise.resolve({ groupId: '1', memberId: 'user-2' }),
             });
 
             expect(response.status).toBe(401);
         });
 
         it('returns 400 when trying to remove group owner', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'owner-1' } });
-            (mockDb.query.group.findFirst as jest.Mock).mockResolvedValueOnce({ id: 1, ownerId: 'owner-1' });
-            mockIsGroupMember.mockResolvedValueOnce(true);
+            mockResolveGroupScope.mockResolvedValueOnce({
+                ok: true,
+                user: { id: 'owner-1', name: 'Owner' },
+                group: { id: 1, name: 'Group 1', ownerId: 'owner-1' },
+                role: 'owner',
+            });
 
             const request = new Request('http://localhost/api/groups/1/members/owner-1', { method: 'DELETE' });
             const response = await DELETE(request, {
-                params: Promise.resolve({ groupId: '1', memberId: 'owner-1' })
+                params: Promise.resolve({ groupId: '1', memberId: 'owner-1' }),
             });
 
             expect(response.status).toBe(400);
         });
 
         it('returns 403 when non-owner tries to remove another member', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-2' } });
-            (mockDb.query.group.findFirst as jest.Mock).mockResolvedValueOnce({ id: 1, ownerId: 'owner-1' });
-            mockIsGroupMember.mockResolvedValueOnce(true);
+            mockResolveGroupScope.mockResolvedValueOnce({
+                ok: true,
+                user: { id: 'user-2', name: 'User 2' },
+                group: { id: 1, name: 'Group 1', ownerId: 'owner-1' },
+                role: 'member',
+            });
 
             const request = new Request('http://localhost/api/groups/1/members/user-3', { method: 'DELETE' });
             const response = await DELETE(request, {
-                params: Promise.resolve({ groupId: '1', memberId: 'user-3' })
+                params: Promise.resolve({ groupId: '1', memberId: 'user-3' }),
             });
 
             expect(response.status).toBe(403);
         });
 
         it('returns 400 when member has active debts', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'owner-1' } });
-            (mockDb.query.group.findFirst as jest.Mock).mockResolvedValueOnce({ id: 1, ownerId: 'owner-1' });
-            mockIsGroupMember
-                .mockResolvedValueOnce(true)  // Requester is member
-                .mockResolvedValueOnce(true); // Target is member
-            (mockDb.query.user.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'user-2', name: 'User 2' });
-            mockGetUserDebts.mockResolvedValueOnce([
-                { other_user_id: 'owner-1', net_balance: -5000, name: 'User 1', image: '' },
+            mockResolveGroupScope.mockResolvedValueOnce({
+                ok: true,
+                user: { id: 'owner-1', name: 'Owner' },
+                group: { id: 1, name: 'Group 1', ownerId: 'owner-1' },
+                role: 'owner',
+            });
+            mockIsGroupMember.mockResolvedValueOnce(true);
+            mockGetGroupDebts.mockResolvedValueOnce([
+                { other_user_id: 'owner-1', amount: -5000, other_user_name: 'User 1', other_user_image: null, type: 'PAYABLE' },
             ]);
 
             const request = new Request('http://localhost/api/groups/1/members/user-2', { method: 'DELETE' });
             const response = await DELETE(request, {
-                params: Promise.resolve({ groupId: '1', memberId: 'user-2' })
+                params: Promise.resolve({ groupId: '1', memberId: 'user-2' }),
             });
 
             expect(response.status).toBe(400);
         });
 
         it('allows member to remove self when no debts', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-2' } });
-            (mockDb.query.group.findFirst as jest.Mock).mockResolvedValueOnce({ id: 1, ownerId: 'owner-1' });
-            mockIsGroupMember
-                .mockResolvedValueOnce(true)
-                .mockResolvedValueOnce(true);
-            (mockDb.query.user.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'user-2', name: 'User 2' });
-            mockGetUserDebts.mockResolvedValueOnce([]);
+            mockResolveGroupScope.mockResolvedValueOnce({
+                ok: true,
+                user: { id: 'user-2', name: 'User 2' },
+                group: { id: 1, name: 'Group 1', ownerId: 'owner-1' },
+                role: 'member',
+            });
+            mockIsGroupMember.mockResolvedValueOnce(true);
+            mockGetGroupDebts.mockResolvedValueOnce([]);
             ((mockDb as any).returning as jest.Mock).mockResolvedValueOnce([{ userId: 'user-2' }]);
 
             const request = new Request('http://localhost/api/groups/1/members/user-2', { method: 'DELETE' });
             const response = await DELETE(request, {
-                params: Promise.resolve({ groupId: '1', memberId: 'user-2' })
+                params: Promise.resolve({ groupId: '1', memberId: 'user-2' }),
             });
 
             expect(response.status).toBe(200);
         });
 
         it('removes member when no debts', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'owner-1' } });
-            (mockDb.query.group.findFirst as jest.Mock).mockResolvedValueOnce({ id: 1, ownerId: 'owner-1' });
-            mockIsGroupMember
-                .mockResolvedValueOnce(true)
-                .mockResolvedValueOnce(true);
-            (mockDb.query.user.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'user-2', name: 'User 2' });
-            mockGetUserDebts.mockResolvedValueOnce([]);
+            mockResolveGroupScope.mockResolvedValueOnce({
+                ok: true,
+                user: { id: 'owner-1', name: 'Owner' },
+                group: { id: 1, name: 'Group 1', ownerId: 'owner-1' },
+                role: 'owner',
+            });
+            mockIsGroupMember.mockResolvedValueOnce(true);
+            mockGetGroupDebts.mockResolvedValueOnce([]);
             ((mockDb as any).returning as jest.Mock).mockResolvedValueOnce([{ userId: 'user-2' }]);
 
             const request = new Request('http://localhost/api/groups/1/members/user-2', { method: 'DELETE' });
             const response = await DELETE(request, {
-                params: Promise.resolve({ groupId: '1', memberId: 'user-2' })
+                params: Promise.resolve({ groupId: '1', memberId: 'user-2' }),
             });
 
             expect(response.status).toBe(200);

@@ -1,47 +1,24 @@
-import { activity, db, group, idempotencyKey, settlement } from "@/db/schema";
-import { isGroupMember } from "@/lib/helpers/checks";
+import { activity, db, idempotencyKey, settlement } from "@/db/schema";
+import { isGroupMember, resolveGroupScope } from "@/lib/auth/scope";
 import { ACTIVITY_TYPES } from "@/lib/zod/activity";
 import { settlementInsertSchema } from "@/lib/zod/settlement";
-import { auth } from "@/utils/auth";
 import { eq } from "drizzle-orm";
-import { headers } from "next/headers";
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ groupId: string }> }
 ) {
   const { groupId } = await params;
-
-  const session = await auth.api.getSession({
-    headers: await headers()
-  })
-  if (!session?.user.id) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const groupIdInt = parseInt(groupId);
-  if (!await isGroupMember(session.user.id, groupIdInt)) {
-    return Response.json({ error: "You are not a member of this group. You can't add settlements." }, { status: 403 });
-  }
-
-  const groupData = await db.query.group.findFirst({
-    where: eq(group.id, groupIdInt),
-  });
-
-  if (!groupData) {
-    return Response.json(
-      {
-        error: "Group not found",
-      },
-      { status: 404 }
-    );
-  }
+  const scope = await resolveGroupScope(request, groupId);
+  if (!scope.ok) return scope.response;
+  const groupIdInt = scope.group.id;
 
   const settlements = await db.query.settlement.findMany({
     where: eq(settlement.groupId, groupIdInt),
     with: {
       fromUser: true,
       toUser: true,
-    }
+    },
   });
 
   return Response.json(
@@ -52,23 +29,17 @@ export async function GET(
   );
 }
 
-
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ groupId: string }> }
 ) {
   const { groupId } = await params;
-  const groupIdInt = parseInt(groupId);
+  const scope = await resolveGroupScope(request, groupId);
+  if (!scope.ok) return scope.response;
+  const groupIdInt = scope.group.id;
   const idempotencyKeyHeader = request.headers.get("Idempotency-Key");
 
   try {
-    const session = await auth.api.getSession({
-      headers: await headers()
-    });
-    if (!session?.user?.id) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     if (idempotencyKeyHeader) {
       const existingKey = await db.query.idempotencyKey.findFirst({
         where: eq(idempotencyKey.key, idempotencyKeyHeader),
@@ -87,18 +58,6 @@ export async function POST(
       }
     }
 
-    const groupData = await db.query.group.findFirst({
-      where: eq(group.id, groupIdInt),
-    });
-
-    if (!groupData) {
-      return Response.json({ error: "Group not found" }, { status: 404 });
-    }
-
-    if (!await isGroupMember(session.user.id, groupIdInt)) {
-      return Response.json({ error: "You are not a member of this group. You can't add settlements." }, { status: 403 });
-    }
-
     const body = await request.json();
     const validation = await settlementInsertSchema.safeParseAsync(body);
 
@@ -111,23 +70,35 @@ export async function POST(
 
     const { amount, fromUserId, toUserId } = validation.data;
     if (toUserId === fromUserId) {
-      return Response.json({ error: "You can't settle transactions with yourself." }, { status: 400 });
+      return Response.json(
+        { error: "You can't settle transactions with yourself." },
+        { status: 400 }
+      );
     }
 
-    if (fromUserId !== session.user.id && toUserId !== session.user.id) {
-      return Response.json({ error: "You can't settle transactions for others." }, { status: 403 });
+    if (fromUserId !== scope.user.id && toUserId !== scope.user.id) {
+      return Response.json(
+        { error: "You can't settle transactions for others." },
+        { status: 403 }
+      );
     }
-    const otherUserId = fromUserId === session.user.id ? toUserId : fromUserId;
+    const otherUserId = fromUserId === scope.user.id ? toUserId : fromUserId;
 
-    if (!await isGroupMember(otherUserId, groupIdInt)) {
-      return Response.json({ error: "You can't settle transactions with people outside the group." }, { status: 403 });
+    if (!(await isGroupMember(otherUserId, groupIdInt))) {
+      return Response.json(
+        {
+          error:
+            "You can't settle transactions with people outside the group.",
+        },
+        { status: 403 }
+      );
     }
 
     const result = await db.transaction(async (tx) => {
       if (idempotencyKeyHeader) {
         await tx.insert(idempotencyKey).values({
           key: idempotencyKeyHeader,
-          userId: session.user.id,
+          userId: scope.user.id,
           endpoint: request.url,
           responseBody: "PENDING",
           responseStatus: 202,
@@ -156,19 +127,18 @@ export async function POST(
 
       await tx.insert(activity).values({
         groupId: groupIdInt,
-        userId: session.user.id,
+        userId: scope.user.id,
         type: ACTIVITY_TYPES.SETTLEMENT_CREATE,
         metadata: {
           settlement: newSettlement,
           amount: newSettlement.amount / 100,
           currency: "INR",
-        }
-      })
+        },
+      });
       return newSettlement;
     });
 
     return Response.json({ insertedSettlement: result }, { status: 201 });
-
   } catch (error: unknown) {
     // Postgres unique constraint violation code
     if ((error as any).code === "23505" && idempotencyKeyHeader) {

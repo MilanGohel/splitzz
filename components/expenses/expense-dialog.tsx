@@ -108,16 +108,16 @@ function expenseToForm(expense: Expense): ExpenseInsertSchema {
   };
 }
 
+import {
+  calculateEqualSplit,
+  calculatePercentageSplit as calculateLedgerPercentageSplit,
+  calculateSharesSplit as calculateLedgerSharesSplit,
+} from "@/lib/ledger/splits";
+
 function equalSplit(total: number, ids: string[]) {
-  if (ids.length === 0 || total <= 0) return [];
-
-  const cents = Math.round(total * 100);
-  const base = Math.floor(cents / ids.length);
-  const remainder = cents % ids.length;
-
-  return ids.map((id, i) => ({
-    userId: id,
-    shareAmount: (base + (i < remainder ? 1 : 0)) / 100,
+  return calculateEqualSplit(total, ids).map((s) => ({
+    userId: s.userId,
+    shareAmount: s.shareAmount,
   }));
 }
 
@@ -126,33 +126,13 @@ function calculatePercentageSplit(
   members: Member[],
   percentages: Record<string, number>
 ) {
-  const activeMembers = members.filter((m) => (percentages[m.id] || 0) > 0);
-  if (activeMembers.length === 0 || total <= 0) return [];
-
-  const totalCents = Math.round(total * 100);
-  let allocatedCents = 0;
-
-  const sharesWithCents = activeMembers.map((m) => {
-    const percent = percentages[m.id] || 0;
-    const cents = Math.round(total * (percent / 100) * 100);
-    allocatedCents += cents;
-    return { userId: m.id, cents };
-  });
-
-  const remainder = totalCents - allocatedCents;
-  if (remainder > 0) {
-    for (let i = 0; i < remainder; i++) {
-      sharesWithCents[i % sharesWithCents.length].cents += 1;
-    }
-  } else if (remainder < 0) {
-    for (let i = 0; i < Math.abs(remainder); i++) {
-      sharesWithCents[i % sharesWithCents.length].cents -= 1;
-    }
-  }
-
-  return sharesWithCents.map((s) => ({
+  return calculateLedgerPercentageSplit(
+    total,
+    members.map((m) => m.id),
+    percentages
+  ).map((s) => ({
     userId: s.userId,
-    shareAmount: s.cents / 100,
+    shareAmount: s.shareAmount,
   }));
 }
 
@@ -161,37 +141,13 @@ function calculateSharesSplit(
   members: Member[],
   ratios: Record<string, number>
 ) {
-  const activeMembers = members.filter((m) => (ratios[m.id] ?? 1) > 0);
-  const totalWeight = activeMembers.reduce(
-    (sum, m) => sum + (ratios[m.id] ?? 1),
-    0
-  );
-  if (totalWeight <= 0 || activeMembers.length === 0 || total <= 0) return [];
-
-  const totalCents = Math.round(total * 100);
-  let allocatedCents = 0;
-
-  const sharesWithCents = activeMembers.map((m) => {
-    const weight = ratios[m.id] ?? 1;
-    const cents = Math.round((totalCents * weight) / totalWeight);
-    allocatedCents += cents;
-    return { userId: m.id, cents };
-  });
-
-  const remainder = totalCents - allocatedCents;
-  if (remainder > 0) {
-    for (let i = 0; i < remainder; i++) {
-      sharesWithCents[i % sharesWithCents.length].cents += 1;
-    }
-  } else if (remainder < 0) {
-    for (let i = 0; i < Math.abs(remainder); i++) {
-      sharesWithCents[i % sharesWithCents.length].cents -= 1;
-    }
-  }
-
-  return sharesWithCents.map((s) => ({
+  return calculateLedgerSharesSplit(
+    total,
+    members.map((m) => m.id),
+    ratios
+  ).map((s) => ({
     userId: s.userId,
-    shareAmount: s.cents / 100,
+    shareAmount: s.shareAmount,
   }));
 }
 

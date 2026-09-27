@@ -8,6 +8,8 @@
  * - DELETE /api/expenses/[expenseId]
  */
 
+import { NextResponse } from 'next/server';
+
 // Mock database BEFORE imports
 jest.mock('@/db/schema', () => {
     const mockDb = {
@@ -53,7 +55,8 @@ jest.mock('next/headers', () => ({
     headers: jest.fn().mockResolvedValue(new Headers()),
 }));
 
-jest.mock('@/lib/helpers/checks', () => ({
+jest.mock('@/lib/auth/scope', () => ({
+    resolveGroupScope: jest.fn(),
     isGroupMember: jest.fn(),
 }));
 
@@ -61,29 +64,43 @@ import { GET, POST } from '@/app/api/groups/[groupId]/expenses/route';
 import { GET as GETExpense, DELETE as DELETEExpense, PATCH as PATCHExpense } from '@/app/api/expenses/[expenseId]/route';
 import { auth } from '@/utils/auth';
 import { db } from '@/db/schema';
-import { isGroupMember } from '@/lib/helpers/checks';
+import { resolveGroupScope, isGroupMember } from '@/lib/auth/scope';
 
 const mockGetSession = auth.api.getSession as unknown as jest.Mock;
 const mockDb = db as jest.Mocked<typeof db>;
+const mockResolveGroupScope = resolveGroupScope as jest.Mock;
 const mockIsGroupMember = isGroupMember as jest.Mock;
 
 describe('Expenses API', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        mockResolveGroupScope.mockResolvedValue({
+            ok: true,
+            user: { id: 'user-1', name: 'User 1', email: 'user1@example.com' },
+            group: { id: 1, name: 'Group 1', ownerId: 'user-1', simplifyDebts: false },
+            role: 'owner',
+        });
+        mockIsGroupMember.mockResolvedValue(true);
+
         (mockDb.select as jest.Mock).mockReturnThis();
         (mockDb.from as jest.Mock).mockReturnThis();
         (mockDb.where as jest.Mock).mockReturnThis();
-        (mockDb.limit as jest.Mock).mockReturnThis();
+        (mockDb.limit as jest.Mock).mockResolvedValue([{ userId: 'user-1', groupId: 1 }]);
         (mockDb.orderBy as jest.Mock).mockReturnThis();
         (mockDb.offset as jest.Mock).mockReturnThis();
         (mockDb.insert as jest.Mock).mockReturnThis();
         (mockDb.values as jest.Mock).mockReturnThis();
         (mockDb.delete as jest.Mock).mockReturnThis();
+        (mockDb.update as jest.Mock).mockReturnThis();
+        (mockDb.set as jest.Mock).mockReturnThis();
     });
 
     describe('GET /api/groups/[groupId]/expenses', () => {
         it('returns 401 when not authenticated', async () => {
-            mockGetSession.mockResolvedValueOnce(null);
+            mockResolveGroupScope.mockResolvedValueOnce({
+                ok: false,
+                response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+            });
 
             const request = new Request('http://localhost/api/groups/1/expenses');
             const response = await GET(request, { params: Promise.resolve({ groupId: '1' }) });
@@ -92,8 +109,10 @@ describe('Expenses API', () => {
         });
 
         it('returns 403 when user is not a group member', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-1' } });
-            mockIsGroupMember.mockResolvedValueOnce(false);
+            mockResolveGroupScope.mockResolvedValueOnce({
+                ok: false,
+                response: NextResponse.json({ error: 'You are not a member of this group' }, { status: 403 }),
+            });
 
             const request = new Request('http://localhost/api/groups/1/expenses');
             const response = await GET(request, { params: Promise.resolve({ groupId: '1' }) });
@@ -102,8 +121,6 @@ describe('Expenses API', () => {
         });
 
         it('returns expenses when authorized', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-1' } });
-            mockIsGroupMember.mockResolvedValueOnce(true);
             (mockDb.query.expense.findMany as jest.Mock).mockResolvedValueOnce([
                 { id: 1, description: 'Dinner', totalAmount: 10000 },
             ]);
@@ -127,9 +144,6 @@ describe('Expenses API', () => {
         };
 
         it('returns 400 for invalid input', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-1' } });
-            mockIsGroupMember.mockResolvedValueOnce(true);
-
             const request = new Request('http://localhost/api/groups/1/expenses', {
                 method: 'POST',
                 body: JSON.stringify({ description: 'Test' }), // Missing required fields
@@ -141,8 +155,6 @@ describe('Expenses API', () => {
         });
 
         it('returns 400 when shares do not equal total', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-1' } });
-            mockIsGroupMember.mockResolvedValueOnce(true);
             ((mockDb as any).where as jest.Mock).mockResolvedValueOnce([
                 { userId: 'user-1' }, { userId: 'user-2' },
             ]);
@@ -161,12 +173,10 @@ describe('Expenses API', () => {
         });
 
         it('returns 404 when group not found', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-1' } });
-            mockIsGroupMember.mockResolvedValueOnce(true);
-            ((mockDb as any).where as jest.Mock).mockResolvedValueOnce([
-                { userId: 'user-1' }, { userId: 'user-2' },
-            ]);
-            ((mockDb as any).limit as jest.Mock).mockResolvedValueOnce([]); // No group found
+            mockResolveGroupScope.mockResolvedValueOnce({
+                ok: false,
+                response: NextResponse.json({ error: 'Group not found' }, { status: 404 }),
+            });
 
             const request = new Request('http://localhost/api/groups/1/expenses', {
                 method: 'POST',
@@ -179,25 +189,41 @@ describe('Expenses API', () => {
         });
 
         it('creates expense successfully', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-1' } });
-            mockIsGroupMember.mockResolvedValueOnce(true);
+            const insertedExpense = { id: 1, groupId: 1, ...validExpense, totalAmount: 10000 };
+            const insertedShares = [
+                { id: 1, expenseId: 1, userId: 'user-1', shareAmount: 5000 },
+                { id: 2, expenseId: 1, userId: 'user-2', shareAmount: 5000 },
+            ];
+
             ((mockDb as any).where as jest.Mock).mockResolvedValueOnce([
                 { userId: 'user-1' }, { userId: 'user-2' },
             ]);
-            ((mockDb as any).limit as jest.Mock).mockResolvedValueOnce([{ id: 1, name: 'Test Group', ownerId: 'user-1' }]);
-            ((mockDb as any).transaction as jest.Mock).mockImplementationOnce(async (fn: any) => {
-                const mockExpense = { id: 1, description: 'Dinner', totalAmount: 10000 };
-                return fn({
-                    insert: jest.fn().mockReturnThis(),
-                    values: jest.fn().mockReturnThis(),
-                    returning: jest.fn().mockResolvedValue([mockExpense]),
-                    update: jest.fn().mockReturnThis(),
-                    set: jest.fn().mockReturnThis(),
-                    where: jest.fn().mockReturnThis(),
+
+            (mockDb.transaction as jest.Mock).mockImplementationOnce(async (callback) => {
+                const tx = {
+                    insert: jest.fn().mockReturnValue({
+                        values: jest.fn().mockReturnValue({
+                            returning: jest.fn()
+                                .mockResolvedValueOnce([insertedExpense])
+                                .mockResolvedValueOnce(insertedShares),
+                        }),
+                    }),
+                    update: jest.fn().mockReturnValue({
+                        set: jest.fn().mockReturnValue({
+                            where: jest.fn().mockResolvedValueOnce([]),
+                        }),
+                    }),
                     query: {
-                        expense: { findFirst: jest.fn().mockResolvedValue(mockExpense) },
+                        expense: {
+                            findFirst: jest.fn().mockResolvedValueOnce({
+                                ...insertedExpense,
+                                paidBy: { id: 'user-1', name: 'User 1' },
+                                shares: insertedShares,
+                            }),
+                        },
                     },
-                });
+                };
+                return callback(tx);
             });
 
             const request = new Request('http://localhost/api/groups/1/expenses', {
@@ -211,30 +237,47 @@ describe('Expenses API', () => {
         });
 
         it('creates expense with category successfully', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-1' } });
-            mockIsGroupMember.mockResolvedValueOnce(true);
+            const expenseWithCategory = { ...validExpense, category: 'food' };
+            const insertedExpense = { id: 1, groupId: 1, ...expenseWithCategory, totalAmount: 10000 };
+            const insertedShares = [
+                { id: 1, expenseId: 1, userId: 'user-1', shareAmount: 5000 },
+                { id: 2, expenseId: 1, userId: 'user-2', shareAmount: 5000 },
+            ];
+
             ((mockDb as any).where as jest.Mock).mockResolvedValueOnce([
                 { userId: 'user-1' }, { userId: 'user-2' },
             ]);
-            ((mockDb as any).limit as jest.Mock).mockResolvedValueOnce([{ id: 1, name: 'Test Group', ownerId: 'user-1' }]);
-            ((mockDb as any).transaction as jest.Mock).mockImplementationOnce(async (fn: any) => {
-                const mockExpense = { id: 1, description: 'Dinner', totalAmount: 10000, category: 'food' };
-                return fn({
-                    insert: jest.fn().mockReturnThis(),
-                    values: jest.fn().mockReturnThis(),
-                    returning: jest.fn().mockResolvedValue([mockExpense]),
-                    update: jest.fn().mockReturnThis(),
-                    set: jest.fn().mockReturnThis(),
-                    where: jest.fn().mockReturnThis(),
+
+            (mockDb.transaction as jest.Mock).mockImplementationOnce(async (callback) => {
+                const tx = {
+                    insert: jest.fn().mockReturnValue({
+                        values: jest.fn().mockReturnValue({
+                            returning: jest.fn()
+                                .mockResolvedValueOnce([insertedExpense])
+                                .mockResolvedValueOnce(insertedShares),
+                        }),
+                    }),
+                    update: jest.fn().mockReturnValue({
+                        set: jest.fn().mockReturnValue({
+                            where: jest.fn().mockResolvedValueOnce([]),
+                        }),
+                    }),
                     query: {
-                        expense: { findFirst: jest.fn().mockResolvedValue(mockExpense) },
+                        expense: {
+                            findFirst: jest.fn().mockResolvedValueOnce({
+                                ...insertedExpense,
+                                paidBy: { id: 'user-1', name: 'User 1' },
+                                shares: insertedShares,
+                            }),
+                        },
                     },
-                });
+                };
+                return callback(tx);
             });
 
             const request = new Request('http://localhost/api/groups/1/expenses', {
                 method: 'POST',
-                body: JSON.stringify({ ...validExpense, category: 'food' }),
+                body: JSON.stringify(expenseWithCategory),
                 headers: { 'Content-Type': 'application/json' },
             });
             const response = await POST(request, { params: Promise.resolve({ groupId: '1' }) });
@@ -360,15 +403,19 @@ describe('Expenses API', () => {
                 .mockResolvedValueOnce([{ id: 1, ownerId: 'user-1' }]);
 
             const updatedExpense = { id: 1, description: 'Updated Dinner', totalAmount: 10000, category: 'food' };
+            const txUpdate = {
+                set: jest.fn(),
+                where: jest.fn(),
+                returning: jest.fn().mockResolvedValue([updatedExpense]),
+            };
+            txUpdate.set.mockReturnValue(txUpdate);
+            txUpdate.where.mockReturnValue(txUpdate);
+
             ((mockDb as any).transaction as jest.Mock).mockImplementationOnce(async (fn: any) => {
                 return fn({
-                    update: jest.fn().mockReturnThis(),
-                    set: jest.fn().mockReturnThis(),
-                    where: jest.fn().mockReturnThis(),
-                    returning: jest.fn().mockResolvedValue([updatedExpense]),
-                    delete: jest.fn().mockReturnThis(),
-                    insert: jest.fn().mockReturnThis(),
-                    values: jest.fn().mockReturnThis(),
+                    update: jest.fn().mockReturnValue(txUpdate),
+                    delete: jest.fn().mockReturnValue({ where: jest.fn().mockResolvedValue([]) }),
+                    insert: jest.fn().mockReturnValue({ values: jest.fn().mockResolvedValue([]) }),
                     query: {
                         expense: { findFirst: jest.fn().mockResolvedValue(updatedExpense) },
                     },

@@ -1,4 +1,4 @@
-import { DashboardDuration, getUserDashboardData, getUserDebts } from "@/lib/helpers/queries";
+import { DashboardDuration, getUserDashboardData } from "@/lib/helpers/queries";
 import { auth } from "@/utils/auth";
 import { headers } from "next/headers";
 

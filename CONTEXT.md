@@ -38,3 +38,9 @@ The server-side ingestion module that accepts raw receipt image bytes, delegates
 
 ### Receipt Tokenizer
 The deterministic heuristics engine that extracts financial entities from unformatted OCR text lines using pattern recognition and vocabulary scoring.
+
+### Financial Ledger
+The pure in-process mathematical engine managing share allocation, penny remainder distribution, net balance accumulation, and debt graph minimization across all group transactions.
+
+### Group Scope
+The unified authorization guard enforcing authenticated session, group existence, and caller membership/role verification across all group endpoints behind a single seam.

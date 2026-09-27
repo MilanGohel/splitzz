@@ -6,6 +6,8 @@
  * - POST /api/groups/[groupId]/settlements
  */
 
+import { NextResponse } from 'next/server';
+
 // Mock database BEFORE imports
 jest.mock('@/db/schema', () => {
     const mockDb = {
@@ -18,6 +20,7 @@ jest.mock('@/db/schema', () => {
         query: {
             group: { findFirst: jest.fn() },
             settlement: { findMany: jest.fn() },
+            idempotencyKey: { findFirst: jest.fn() },
         },
         transaction: jest.fn(),
     };
@@ -26,77 +29,80 @@ jest.mock('@/db/schema', () => {
         db: mockDb,
         group: { id: 'id' },
         settlement: { groupId: 'group_id' },
-        idempotencyKey: {},
+        idempotencyKey: { key: 'key' },
+        activity: {},
     };
 });
 
-jest.mock('@/utils/auth', () => ({
-    auth: { api: { getSession: jest.fn() } },
-}));
-
-jest.mock('next/headers', () => ({
-    headers: jest.fn().mockResolvedValue(new Headers()),
-}));
-
-jest.mock('@/lib/helpers/checks', () => ({
+jest.mock('@/lib/auth/scope', () => ({
+    resolveGroupScope: jest.fn(),
     isGroupMember: jest.fn(),
 }));
 
 import { GET, POST } from '@/app/api/groups/[groupId]/settlements/route';
-import { auth } from '@/utils/auth';
 import { db } from '@/db/schema';
-import { isGroupMember } from '@/lib/helpers/checks';
+import { resolveGroupScope, isGroupMember } from '@/lib/auth/scope';
 
-const mockGetSession = auth.api.getSession as unknown as jest.Mock;
 const mockDb = db as jest.Mocked<typeof db>;
+const mockResolveGroupScope = resolveGroupScope as jest.Mock;
 const mockIsGroupMember = isGroupMember as jest.Mock;
 
 describe('Settlements API', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        mockResolveGroupScope.mockResolvedValue({
+            ok: true,
+            user: { id: 'user-1', name: 'User 1', email: 'user1@example.com' },
+            group: { id: 1, name: 'Group 1', ownerId: 'user-1', simplifyDebts: false },
+            role: 'owner',
+        });
+        mockIsGroupMember.mockResolvedValue(true);
     });
 
     describe('GET /api/groups/[groupId]/settlements', () => {
         it('returns 401 when not authenticated', async () => {
-            mockGetSession.mockResolvedValueOnce(null);
+            mockResolveGroupScope.mockResolvedValueOnce({
+                ok: false,
+                response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+            });
 
             const request = new Request('http://localhost/api/groups/1/settlements');
-            const response = await GET(request, { params: Promise.resolve({ groupId: 1 }) });
+            const response = await GET(request, { params: Promise.resolve({ groupId: '1' }) });
 
             expect(response.status).toBe(401);
         });
 
         it('returns 403 when not a group member', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-1' } });
-            mockIsGroupMember.mockResolvedValueOnce(false);
+            mockResolveGroupScope.mockResolvedValueOnce({
+                ok: false,
+                response: NextResponse.json({ error: 'You are not a member of this group' }, { status: 403 }),
+            });
 
             const request = new Request('http://localhost/api/groups/1/settlements');
-            const response = await GET(request, { params: Promise.resolve({ groupId: 1 }) });
+            const response = await GET(request, { params: Promise.resolve({ groupId: '1' }) });
 
             expect(response.status).toBe(403);
         });
 
         it('returns 404 when group not found', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-1' } });
-            mockIsGroupMember.mockResolvedValueOnce(true);
-            (mockDb.query.group.findFirst as jest.Mock).mockResolvedValueOnce(null);
+            mockResolveGroupScope.mockResolvedValueOnce({
+                ok: false,
+                response: NextResponse.json({ error: 'Group not found' }, { status: 404 }),
+            });
 
             const request = new Request('http://localhost/api/groups/1/settlements');
-            const response = await GET(request, { params: Promise.resolve({ groupId: 1 }) });
+            const response = await GET(request, { params: Promise.resolve({ groupId: '1' }) });
 
             expect(response.status).toBe(404);
         });
 
         it('returns settlements when authorized', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-1' } });
-            mockIsGroupMember.mockResolvedValueOnce(true);
-            (mockDb.query.group.findFirst as jest.Mock).mockResolvedValueOnce({ id: 1 });
             (mockDb.query.settlement.findMany as jest.Mock).mockResolvedValueOnce([
                 { id: 1, fromUserId: 'user-1', toUserId: 'user-2', amount: 5000 },
             ]);
 
             const request = new Request('http://localhost/api/groups/1/settlements');
-            const response = await GET(request, { params: Promise.resolve({ groupId: 1 }) });
+            const response = await GET(request, { params: Promise.resolve({ groupId: '1' }) });
 
             expect(response.status).toBe(200);
         });
@@ -110,92 +116,103 @@ describe('Settlements API', () => {
         };
 
         it('returns 401 when not authenticated', async () => {
-            mockGetSession.mockResolvedValueOnce(null);
+            mockResolveGroupScope.mockResolvedValueOnce({
+                ok: false,
+                response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+            });
 
             const request = new Request('http://localhost/api/groups/1/settlements', {
                 method: 'POST',
                 body: JSON.stringify(validSettlement),
                 headers: { 'Content-Type': 'application/json' },
             });
-            const response = await POST(request, { params: Promise.resolve({ groupId: 1 }) });
+            const response = await POST(request, { params: Promise.resolve({ groupId: '1' }) });
 
             expect(response.status).toBe(401);
         });
 
         it('returns 404 when group not found', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-1' } });
-            (mockDb.query.group.findFirst as jest.Mock).mockResolvedValueOnce(null);
+            mockResolveGroupScope.mockResolvedValueOnce({
+                ok: false,
+                response: NextResponse.json({ error: 'Group not found' }, { status: 404 }),
+            });
 
             const request = new Request('http://localhost/api/groups/1/settlements', {
                 method: 'POST',
                 body: JSON.stringify(validSettlement),
                 headers: { 'Content-Type': 'application/json' },
             });
-            const response = await POST(request, { params: Promise.resolve({ groupId: 1 }) });
+            const response = await POST(request, { params: Promise.resolve({ groupId: '1' }) });
 
             expect(response.status).toBe(404);
         });
 
         it('returns 400 for self-settlement', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-1' } });
-            (mockDb.query.group.findFirst as jest.Mock).mockResolvedValueOnce({ id: 1 });
-            mockIsGroupMember.mockResolvedValueOnce(true);
-
             const request = new Request('http://localhost/api/groups/1/settlements', {
                 method: 'POST',
-                body: JSON.stringify({ fromUserId: 'user-1', toUserId: 'user-1', amount: 50 }),
+                body: JSON.stringify({
+                    fromUserId: 'user-1',
+                    toUserId: 'user-1',
+                    amount: 50,
+                }),
                 headers: { 'Content-Type': 'application/json' },
             });
-            const response = await POST(request, { params: Promise.resolve({ groupId: 1 }) });
+            const response = await POST(request, { params: Promise.resolve({ groupId: '1' }) });
 
             expect(response.status).toBe(400);
         });
 
         it('returns 403 when settling for others', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-3' } }); // Different user
-            (mockDb.query.group.findFirst as jest.Mock).mockResolvedValueOnce({ id: 1 });
-            mockIsGroupMember.mockResolvedValueOnce(true);
-
             const request = new Request('http://localhost/api/groups/1/settlements', {
                 method: 'POST',
-                body: JSON.stringify(validSettlement),
+                body: JSON.stringify({
+                    fromUserId: 'user-2',
+                    toUserId: 'user-3',
+                    amount: 50,
+                }),
                 headers: { 'Content-Type': 'application/json' },
             });
-            const response = await POST(request, { params: Promise.resolve({ groupId: 1 }) });
+            const response = await POST(request, { params: Promise.resolve({ groupId: '1' }) });
 
             expect(response.status).toBe(403);
         });
 
         it('returns 403 when other user is not a member', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-1' } });
-            (mockDb.query.group.findFirst as jest.Mock).mockResolvedValueOnce({ id: 1 });
-            mockIsGroupMember
-                .mockResolvedValueOnce(true)  // user-1 is member
-                .mockResolvedValueOnce(false); // user-2 is NOT member
+            mockIsGroupMember.mockResolvedValueOnce(false);
 
             const request = new Request('http://localhost/api/groups/1/settlements', {
                 method: 'POST',
                 body: JSON.stringify(validSettlement),
                 headers: { 'Content-Type': 'application/json' },
             });
-            const response = await POST(request, { params: Promise.resolve({ groupId: 1 }) });
+            const response = await POST(request, { params: Promise.resolve({ groupId: '1' }) });
 
             expect(response.status).toBe(403);
         });
 
         it('creates settlement successfully', async () => {
-            mockGetSession.mockResolvedValueOnce({ user: { id: 'user-1' } });
-            (mockDb.query.group.findFirst as jest.Mock).mockResolvedValueOnce({ id: 1 });
-            mockIsGroupMember
-                .mockResolvedValueOnce(true)
-                .mockResolvedValueOnce(true);
-            (mockDb.transaction as jest.Mock).mockImplementationOnce(async (fn) => {
-                return fn({
-                    insert: jest.fn().mockReturnThis(),
-                    values: jest.fn().mockReturnThis(),
-                    returning: jest.fn().mockResolvedValue([{ id: 1, amount: 5000 }]),
-                    onConflictDoNothing: jest.fn().mockReturnThis(),
-                });
+            const insertedSettlement = {
+                id: 1,
+                groupId: 1,
+                fromUserId: 'user-1',
+                toUserId: 'user-2',
+                amount: 5000,
+            };
+
+            (mockDb.transaction as jest.Mock).mockImplementationOnce(async (callback) => {
+                const tx = {
+                    insert: jest.fn().mockReturnValue({
+                        values: jest.fn().mockReturnValue({
+                            returning: jest.fn().mockResolvedValueOnce([insertedSettlement]),
+                        }),
+                    }),
+                    update: jest.fn().mockReturnValue({
+                        set: jest.fn().mockReturnValue({
+                            where: jest.fn().mockResolvedValueOnce([]),
+                        }),
+                    }),
+                };
+                return callback(tx);
             });
 
             const request = new Request('http://localhost/api/groups/1/settlements', {
@@ -203,7 +220,7 @@ describe('Settlements API', () => {
                 body: JSON.stringify(validSettlement),
                 headers: { 'Content-Type': 'application/json' },
             });
-            const response = await POST(request, { params: Promise.resolve({ groupId: 1 }) });
+            const response = await POST(request, { params: Promise.resolve({ groupId: '1' }) });
 
             expect(response.status).toBe(201);
         });
