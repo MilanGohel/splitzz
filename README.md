@@ -14,14 +14,13 @@ Splitzz is a modern, full-stack expense sharing application built for roommates,
 [![Tests](https://img.shields.io/badge/Jest-151%20passed-brightgreen?logo=jest)](https://jestjs.io/)
 
 <br />
+
+[Features](#-feature-showcase) • [Tech Stack](#-tech-stack) • [Database Architecture](#-database-architecture) • [Getting Started](#-getting-started) • [API Documentation](#-api-documentation) • [Testing](#-testing)
+
+<br />
 <br />
 
 <img src="public/images/landing-page.png" alt="Splitzz Landing Page" width="100%" />
-
-<br />
-<br />
-
-[Features](#-feature-showcase) • [Tech Stack](#-tech-stack) • [Database Architecture](#-database-architecture) • [Getting Started](#-getting-started) • [API Documentation](#-api-documentation) • [Testing](#-testing)
 
 </div>
 
